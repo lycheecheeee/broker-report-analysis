@@ -512,7 +512,7 @@
                     const formData = new FormData();
                     formData.append('file', file);
                     
-                    const response = await fetch('http://localhost:62190/broker_3quilm/api/upload-pdf', {
+                    const response = await fetch('/broker_3quilm/api/upload-pdf', {
                         method: 'POST',
                         headers: {
                             'Authorization': 'Bearer test-token'
@@ -729,7 +729,7 @@
                             ${result.upload_path || '-'}
                         </td>
                         <td style="padding:10px; border-bottom:1px solid #ddd; font-size:11px;">
-                            ${result.pdf_path ? `<a href="http://localhost:62190/${result.pdf_path}" target="_blank" style="color:#667eea; text-decoration:none;">${result.pdf_filename || '-'}</a>` : (result.pdf_filename || '-')}
+                            ${result.pdf_path ? `<a href="/${result.pdf_path}" target="_blank" style="color:#667eea; text-decoration:none;">${result.pdf_filename || '-'}</a>` : (result.pdf_filename || '-')}
                         </td>
                     </tr>
                 `;
@@ -905,7 +905,7 @@
             
             try {
                 // 獲取所有PDF文件列表，傳遞自定義路徑
-                const response = await fetch(`http://localhost:62190/broker_3quilm/api/list-pdfs?path=${encodeURIComponent(folderPath)}`);
+                const response = await fetch(`/broker_3quilm/api/list-pdfs?path=${encodeURIComponent(folderPath)}`);
                 
                 if (!response.ok) {
                     if (response.status === 404) {
@@ -964,7 +964,7 @@
                         formData.append('folder_path', folderPath);
                         formData.append('enable_web_search', document.getElementById('enableWebSearch').checked);
                         
-                        const analyzeResponse = await fetch('http://localhost:62190/broker_3quilm/api/analyze-existing-pdf', {
+                        const analyzeResponse = await fetch('/broker_3quilm/api/analyze-existing-pdf', {
                             method: 'POST',
                             headers: {
                                 'Authorization': 'Bearer test-token'
@@ -1073,7 +1073,7 @@
         async function loadCharts() {
             try {
                 console.log('[CHART] 開始加載圖表數據...');
-                const response = await fetch('http://localhost:62190/broker_3quilm/api/chart-data');
+                const response = await fetch('/broker_3quilm/api/chart-data');
                 
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}`);
@@ -1374,7 +1374,7 @@
                 btn.disabled = true;
                 
                 // 調用後端 API
-                const response = await fetch('http://localhost:62190/broker_3quilm/api/export-analysis', {
+                const response = await fetch('/broker_3quilm/api/export-analysis', {
                     method: 'GET'
                 });
                 
@@ -1506,7 +1506,7 @@
                     <ol style="margin:0; padding-left:20px; color:#4a5568; line-height:2;">
                         <li>安裝依賴: <code style="background:#e2e8f0; padding:2px 6px; border-radius:4px;">pip install flask flask-cors PyPDF2 requests</code></li>
                         <li>啟動服務: <code style="background:#e2e8f0; padding:2px 6px; border-radius:4px;">python backend.py</code></li>
-                        <li>訪問: <a href="http://localhost:62190/broker_3quilm/universal_pdf_dashboard.html" target="_blank" style="color:#4299e1; text-decoration:none;">http://localhost:62190</a></li>
+                        <li>訪問: <a href="/broker_3quilm/universal_pdf_dashboard.html" target="_blank" style="color:#4299e1; text-decoration:none;">當前網址</a></li>
                         <li>測試帳號: lychee / lycheechee2026</li>
                     </ol>
                 </div>
