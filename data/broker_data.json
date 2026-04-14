@@ -1,0 +1,119 @@
+[
+  {
+    "broker": "美國銀行 (Bank of America)",
+    "filename": "BOA-700.pdf",
+    "rating": "買入",
+    "target_price": 780.0,
+    "current_price": 550.5,
+    "upside_potential": 41.69,
+    "pdf_text_sample": " \n  \n>> Employed by a non -US affiliate of BofAS and is not registered/qualified as a research analyst \nunder the FINRA rules.  \nRefer to \"Other Important Disclosures\" for information on certain BofA Securities entities that take \nresponsibility for the information herein in particular jurisdictions.  \nBofA Securities does and seeks to do business with issuers covered in its research \nreports. As a result, investors should be aware that the firm may have a conflict of \ninterest tha t could affec"
+  },
+  {
+    "broker": "中金公司 (CICC)",
+    "filename": "CICC-700.pdf",
+    "rating": "增持",
+    "target_price": 6.0,
+    "current_price": 550.5,
+    "upside_potential": -98.91,
+    "pdf_text_sample": " \n请仔细阅读在本报告尾部的重要法律声明  \n1  \n腾讯控股   \n基本面韧性强  积极投入 AI   \n 白洋  分析员  \n 肖俨衍   分析员  \n 魏萌  分析员  \n互联网  \nSAC 执证编号： S0080520110002  \nSFC CE Ref ：BGN055  \nyang3.bai@cicc.com.cn  互联网  \nSAC 执证编号： S0080521010001  \nSFC CE Ref ：BIL686  \nyanyan.xiao@cicc.com.cn  互联网  \nSAC 执证编号： S0080524070011  \nSFC CE Ref ：BVB685  \nmeng.wei@cicc.com.cn  \n  \n  维持跑赢行业  \n \n股票代码  股票评级  目标价  \n00700.HK  → 跑赢行业  港币 666.00  \n \n股票代码   00700.HK  \n最新收盘价   港币 550.50  \n52周最高价 /最低价   港币 683.00~415.37  \n总市值 (亿)  港币 50,130.5  \n \n纵轴：相对股价（ %） \n \n "
+  },
+  {
+    "broker": "花旗 (Citigroup)",
+    "filename": "CITIGROUP-700.pdf",
+    "rating": "買入",
+    "target_price": 787.0,
+    "current_price": 550.5,
+    "upside_potential": 42.96,
+    "pdf_text_sample": "See Appendix A-1 for Analyst Certification, Important Disclosures and Research Analyst Affiliations.18 Mar 2026 18:21:03 ET │ 22 pages   \n \nTencent Holdings (0700.HK)\nResilient Core & Strong CF Support AI Transformation Investment  \nCITI'S TAKE \nWe reiterate our Buy rating on Tencent with HK$787 TP and top-pick status. \nWhile Tencent may not be a first mover in the AI race, it has a proven history \nof entering markets later than industry incumbents and ultimately emerging \nas a leader, as demons"
+  },
+  {
+    "broker": "里昂證券 (CLSA)",
+    "filename": "CLSA-700.pdf",
+    "rating": "買入",
+    "target_price": 740.0,
+    "current_price": 550.5,
+    "upside_potential": 34.42,
+    "pdf_text_sample": "Tencent\nHK$550.50 - HIGH CONVICTION OUTPERFORM\nFinancials\nYear to 31 December 24A 25A 26CL 27CL 28CL\nRevenue (Rmbm) 660,257 751,766 831,126 930,204 1,041,922\nRev forecast change (%) - - (0.5) (0.7) (0.7)\nNet profit (Rmbm) 194,073 224,842 235,263 272,823 312,383\nNP forecast change (%) - - (4.1) (5.2) (5.4)\nCL/consensus (40) (EPS%) - - 96 98 98\nAdjusted net profit (Rmbm) 222,703 259,626 279,513 318,256 361,263\nAdjusted EPS (fen) 2,367.2 2,808.6 3,023.7 3,442.8 3,907.9\nAdj EPS growth (% YoY) 44.3 1"
+  },
+  {
+    "broker": "招銀國際 (CMB International)",
+    "filename": "CMB-700.pdf",
+    "rating": "買入",
+    "target_price": 750.0,
+    "current_price": 550.5,
+    "upside_potential": 36.24,
+    "pdf_text_sample": " \nPLEASE READ THE ANALYST CERTIFICATION AND IMPORTANT DISCLOSURES ON LAST PAGE  \nMORE REPORTS FROM BLOOMBERG: RESP CMBR <GO> OR http://www.cmbi.com.hk  1 \n MN \n \n19 Mar 2026  \nCMB International Global Markets | Equity Research | Company Update   \n \n \n \nTencent (700 HK)   \nTencent (700 HK) - Inline 4Q25 \nresults; increasing AI investment \nto solidify competitive moat  \n \n Inline 4Q25 results; increasing AI investment \nto solidify competitive moa t   \n \nTencent announced in -line 4Q25  results: to"
+  },
+  {
+    "broker": "招商證券 (CMS)",
+    "filename": "CMS-700.pdf",
+    "rating": "買入",
+    "target_price": 700.0,
+    "current_price": 550.5,
+    "upside_potential": 27.16,
+    "pdf_text_sample": "Thursday , March 19 , 202 6 \nCompa ny Report  China Merchants Securities (HK)  Co., Ltd.  \nHong Kong Equity Research  \n \nTo access our research reports on the Bloomberg terminal, type NH CMS  <GO>   1 Tencent  (700 HK ) \nLifting AI capex to capture broader opportunities  \n■ 4Q25 results inline : Revenue + 13% yoy, non-IFRS NP +1 7% yoy , driven by \nmargin improvement s across all segments  \n■ Lifting AI capex investment to capture  broader opportunities; Eyes on new \nmodel (HY 3.0) and AI produc"
+  },
+  {
+    "broker": "大和資本 (Daiwa)",
+    "filename": "DAIWA-700.pdf",
+    "rating": "買入",
+    "target_price": 725.0,
+    "current_price": 550.5,
+    "upside_potential": 31.7,
+    "pdf_text_sample": " \nSee important disclosures, including any required research certifications, beginning on page 6 \n \n \nChina Information Technology  \n \nWhat’s new: Tencent delivered a solid 4Q25, with international games \n(+32% YoY) and cloud (+22% YoY) emerging as clear positive s that \nexceeded market expectations. Cross‑segment margin expansion was \nanother highlight, lifting group GPM to 56% (+3ppt YoY), reflecting improved \nmix and operating leverage despite stepped‑up AI investment and higher \nopex. Tencen"
+  },
+  {
+    "broker": "德意志銀行 (Deutsche Bank)",
+    "filename": "DEUTSCHE-700.pdf",
+    "rating": "買入",
+    "target_price": 800.0,
+    "current_price": 550.5,
+    "upside_potential": 45.32,
+    "pdf_text_sample": "7T2se3r0Ot6kwoPa\n7T2se3r0Ot6kwoPa\n12 March 2026\nTencent  launches OpenClaw AI products\nThis week, Tencent  launched its OpenClaw-related AI product suite, comprising \nQClaw (for individuals), Lighthouse (for developers), and WorkBuddy (for \nenterprises). This initiative showcases Tencent 's capabilities in agentic AI and \npositively influenced investor sentiment.\nStrategic positioning\nWe interpret Tencent 's core strategy as the integration of agentic AI across its \nconsumer, developer, and ente"
+  },
+  {
+    "broker": "摩根大通 (JPMorgan)",
+    "filename": "JP-700.pdf",
+    "rating": "買入",
+    "target_price": 550.5,
+    "current_price": 550.5,
+    "upside_potential": 0.0,
+    "pdf_text_sample": "www.jpmorganmarkets.comAsia Pacific Equity Research\n19 March 2026\n  \nTencent (0700) Overweight\n0700.HK, 700 HK  \nStill in the AI race; 2026 becomes a year of \nreinvestment▼Price (18 Mar 26): HK$550.50\nPrice Target (Dec-26): HK$690.00\nPrior (Dec-26): HK$750.00 \nChina\nHead of China Equity Research and \nCo-Head of Asia TMT Research\nAlex Yao AC\n(86 21) 6106 6505\nalex.yao@jpmorgan.com\nSAC Registration Number: S1730523020001\nDaniel Chen\n(86-21) 6106 6205\ndaniel.q.chen@jpmorgan.com\nSAC Registration Num"
+  },
+  {
+    "broker": "麥格理 (Macquarie)",
+    "filename": "MAC-700.pdf",
+    "rating": "買入",
+    "target_price": 2.0,
+    "current_price": 550.5,
+    "upside_potential": -99.64,
+    "pdf_text_sample": "Macquarie Equity Research\n19 March 2026\nTencent\nSolid core engine meets uncertain AI horizon\nKey Points\n•Tencent's healthy 4Q25 was backed by Video Accounts and a resilient\ngame portfolio.\n•Management is shifting towards a capital-intensive \"catch-up\" phase in\nAI infrastructure, foundation model, and new product developments.\n•Maintain Neutral. We see limited near-term earnings upside, and expect\nrange-bound trading before a tangible breakout on AI-led initiatives.\n•AI investment cycle ahead.  T"
+  },
+  {
+    "broker": "摩根士丹利 (Morgan Stanley)",
+    "filename": "MS-700.pdf",
+    "rating": "買入",
+    "target_price": 650.0,
+    "current_price": 550.5,
+    "upside_potential": 18.07,
+    "pdf_text_sample": "M Update\nTencent Holdings Ltd.  | Asia Pacific\nChina Summit 2026 Feedback\nWe hosted Tencent's IR team for an investor group meeting \nwhere discussions mainly focused on AI investments/ROIC, \nchips/compute, model, and applications.\nAI investments / ROIC\n•Tencent is a global leader in leveraging AI to strengthen its core businesses \nwith high ROI, most notably in games and marketing services (ads). AI also \nfacilitates new monetizations such as search and Mini Shops (AI-empowered \ncustomer service"
+  },
+  {
+    "broker": "野村證券 (Nomura)",
+    "filename": "NOMURA-700.pdf",
+    "rating": "買入",
+    "target_price": 727.0,
+    "current_price": 550.5,
+    "upside_potential": 32.06,
+    "pdf_text_sample": "EQUITY: INTERNET & NEW MEDIATencent Holdings    0700.HK 700 HKGlobal Markets Research\n20 March 2026\nRaising investments to capture the AI opportunity\nTencent still well-placed to catch-up in the AI race backed \nby ample cash and WeChat; maintain Buy\nAdopting a more proactive approach towards AI investments\nAt the recent 4Q25 call, Tencent indicated its plan to further ramp up investments in new AI products in \n2026 – the company plans to more than double its investments to CNY36bn-plus, represen"
+  },
+  {
+    "broker": "瑞銀 (UBS)",
+    "filename": "UBS-700.pdf",
+    "rating": "買入",
+    "target_price": 518.0,
+    "current_price": 550.5,
+    "upside_potential": -5.9,
+    "pdf_text_sample": "ab 27 February 2026Global Research\nKey Call: Tencent Holdings\nCore strength meets AI-driven upside\nTime to revisit Tencent\nTencent's stock has declined 13% YTD, underperforming HSTech/HSI's -4%/+4%. We \nattribute the weakness to: 1)   VAT hike concerns following China telecoms  (despite \ndenials from state media Xinhua News ), 2)  heightened regulatory scrutiny (particularly \non food delivery platforms and Trip.com, which we do not view as a broad sector \nconcern), 3) AI disruptions, and 4) Tenc"
+  }
+]

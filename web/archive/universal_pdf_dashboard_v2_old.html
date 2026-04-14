@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能財報分析平台 - 百搭PDF解析器</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Microsoft JhengHei', 'PingFang HK', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 75%, #00f2fe 100%);
+            background-size: 400% 400%;
+            animation: gradientShift 15s ease infinite;
+            min-height: 100vh;
+            padding: 20px;
+            position: relative;
+        }
+        
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        /* Glassmorphism Background Effect */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 20% 50%, rgba(255,255,255,0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(255,255,255,0.1) 0%, transparent 50%),
+                radial-gradient(circle at 40% 20%, rgba(255,255,255,0.05) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: 0;
+        }
+        
+        .container { 
+            max-width: 1400px; 
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+        }
+        
+        /* Glass Card Style */
+        .glass-card {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 
+                0 8px 32px rgba(0, 0, 0, 0.1),
+                inset 0 1px 0 rgba(255, 255, 255, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            transition: all 0.3s ease;
+        }
+        
+        .glass-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 
+                0 12px 40px rgba(0, 0, 0, 0.15),
+                inset 0 1px 0 rgba(255, 255, 255, 0.8);
+        }
+        
+        .header {
+            @extend .glass-card;
+            background: rgba(255, 255, 255, 0.9);
+        }
+        .header h1 { 
+            color: #2d3748; 
+            font-size: 32px; 
+            margin-bottom: 10px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+        .header .subtitle { 
+            color: #718096; 
+            font-size: 16px;
+            font-weight: 400;
+        }
+        
+        .upload-section {
+            @extend .glass-card;
+            background: rgba(255, 255, 255, 0.9);
+            text-align: center;
+        }
+        .upload-section h2 { 
+            color: #2d3748; 
+            margin-bottom: 10px; 
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .upload-section .description { 
+            color: #718096; 
+            margin-bottom: 30px; 
+            line-height: 1.8;
+        }
+        
+        .upload-area {
+            border: 3px dashed rgba(102, 126, 234, 0.4);
+            border-radius: 20px;
+            padding: 60px 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: rgba(248, 249, 255, 0.5);
+            backdrop-filter: blur(10px);
+        }
+        .upload-area:hover {
+            background: rgba(238, 240, 255, 0.7);
+            border-color: rgba(102, 126, 234, 0.8);
+            transform: scale(1.02);
+            box-shadow: 0 8px 24px rgba(102, 126, 234, 0.15);
+        }
+        .upload-icon { 
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 20px;
+            fill: #667eea;
+        }
+        .upload-text { 
+            font-size: 18px; 
+            color: #667eea; 
+            font-weight: 600;
+        }
+        .upload-hint { 
+            font-size: 14px; 
+            color: #a0aec0; 
+            margin-top: 10px;
+        }
+        
+        input[type="file"] { display: none; }
+        
+        .batch-btn {
+            margin-top: 20px;
+            padding: 14px 28px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            color: white;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .batch-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+        .batch-btn svg {
+            width: 20px;
+            height: 20px;
+            fill: currentColor;
+        }
+        
+        .results-section {
+            @extend .glass-card;
+            background: rgba(255, 255, 255, 0.9);
+        }
+        .results-section h2 {
+            color: #2d3748;
+            font-size: 24px;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 3px solid transparent;
+            border-image: linear-gradient(90deg, #667eea, #764ba2) 1;
+            font-weight: 600;
+        }
+        
+        .result-card {
+            background: rgba(248, 249, 250, 0.7);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s ease;
+        }
+        .result-card:hover {
+            transform: translateX(4px);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+        }
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .company-name { font-size: 22px; font-weight: 600; color: #333; }
+        .report-date { font-size: 14px; color: #666; }
+        
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .metric-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .metric-card .label { font-size: 14px; opacity: 0.9; margin-bottom: 10px; }
+        .metric-card .value { font-size: 28px; font-weight: bold; margin-bottom: 5px; }
+        .metric-card .change { font-size: 14px; opacity: 0.9; }
+        
+        .chart-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(600px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .chart-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .chart-card h3 {
+            color: #333;
+            font-size: 18px;
+            margin-bottom: 15px;
+        }
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+        
+        .insight-box {
+            background: #f0f4ff;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            margin-top: 15px;
+        }
+        .insight-box h4 { color: #667eea; margin-bottom: 10px; }
+        .insight-box p { color: #555; line-height: 1.6; font-size: 14px; }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+        .empty-state-icon { font-size: 64px; margin-bottom: 20px; opacity: 0.5; }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #667eea;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>
+                <svg style="width:36px;height:36px;vertical-align:middle;margin-right:12px;fill:#667eea;" viewBox="0 0 24 24">
+                    <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20M12,11V18H14V11H12M8,11V18H10V11H8M16,11V18H18V11H16Z"/>
+                </svg>
+                智能財報分析平台
+            </h1>
+            <p class="subtitle">百搭PDF解析器 | 支援任何券商報告/財務文件 | 自動生成專業Dashboard</p>
+        </div>
+        
+        <!-- Upload Section -->
+        <div class="upload-section">
+            <h2>
+                <svg style="width:28px;height:28px;vertical-align:middle;margin-right:10px;fill:#667eea;" viewBox="0 0 24 24">
+                    <path d="M9,16V10H5L12,3L19,10H15V16H9M5,20V18H19V20H5Z"/>
+                </svg>
+                上載PDF報告
+            </h2>
+            <p class="description">
+                支援任何券商研報、財務報告、業績公告<br>
+                系統自動識別公司名稱、提取關鍵數據、生成互動式Dashboard<br>
+                可批量上載多份報告進行對比分析
+            </p>
+                    
+            <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+                <svg class="upload-icon" viewBox="0 0 24 24">
+                    <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M13.5,16V11H16.5L12,6.5L7.5,11H10.5V16H13.5M6,20V8H13V16H18V20H6Z"/>
+                </svg>
+                <div class="upload-text">點擊此處或拖曳 PDF 文件到此</div>
+                <div class="upload-hint">支援單一或多個PDF文件</div>
+            </div>
+            
+            <input type="file" id="fileInput" accept=".pdf" multiple onchange="handleFileUpload(event)">
+            
+            <!-- 新增：自定義路徑輸入 -->
+            <div style="margin:15px 0;">
+                <label style="display:block; margin-bottom:8px; font-weight:bold; color:#495057;">
+                    <svg style="width:18px;height:18px;vertical-align:middle;margin-right:6px;fill:#667eea;" viewBox="0 0 24 24">
+                        <path d="M20,18H4V8H20M20,6H12L10,4H4A2,2 0 0,0 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V8A2,2 0 0,0 20,6Z"/>
+                    </svg>
+                    PDF文件夾路徑：
+                </label>
+                <input type="text" id="pdfFolderPath" value="reports" placeholder="例如: D:/PDFs/BrokerReports 或留空使用默認 reports/ 文件夾" 
+                       style="width:100%; padding:10px; border:2px solid #e9ecef; border-radius:8px; font-size:14px; box-sizing:border-box; transition:border-color 0.3s;"
+                       onfocus="this.style.borderColor='#667eea'" onblur="this.style.borderColor='#e9ecef'">
+                <small style="color:#6c757d; display:block; margin-top:5px;">
+                    <svg style="width:14px;height:14px;vertical-align:middle;margin-right:4px;fill:#6c757d;" viewBox="0 0 24 24">
+                        <path d="M13,13H11V7H13M13,17H11V15H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
+                    </svg>
+                    提示：可以輸入絕對路徑或相對路徑，留空則使用默認的 reports/ 文件夾
+                </small>
+            </div>
+            
+            <!-- 數據來源選項 -->
+            <div style="margin:15px 0; padding:12px; background:#f8f9fa; border-radius:8px; border:1px solid #e9ecef;">
+                <label style="display:flex; align-items:center; cursor:pointer; font-size:14px; color:#495057;">
+                    <input type="checkbox" id="enableWebSearch" style="margin-right:10px; width:18px; height:18px; cursor:pointer;">
+                    <span>
+                        <svg style="width:18px;height:18px;vertical-align:middle;margin-right:8px;fill:#667eea;" viewBox="0 0 24 24">
+                            <path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12C20,14.4 18.9,16.55 17.16,18L15.65,15.39C16.54,14.45 17.13,13.32 17.33,12.05L15.41,11.72C15.25,12.69 14.83,13.58 14.22,14.31L12.5,12.59V9H14.5V7H10.5V9H12.5V11.76L9.83,9.09C9.95,8.74 10,8.38 10,8A6,6 0 0,1 16,2V4A8,8 0 0,0 12,4Z"/>
+                        </svg>
+                        啟用網絡搜索補充數據（如發布日期、股價等）
+                    </span>
+                </label>
+                <small style="color:#6c757d; display:block; margin-top:8px; margin-left:28px;">
+                    <svg style="width:14px;height:14px;vertical-align:middle;margin-right:4px;fill:#6c757d;" viewBox="0 0 24 24">
+                        <path d="M13,13H11V7H13M13,17H11V15H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
+                    </svg>
+                    默認關閉，只使用PDF文件內嘅數據。勾選後AI會嘗試上網搜尋最新資訊。
+                </small>
+            </div>
+            
+            <button class="batch-btn" onclick="scanFolder()">
+                <svg style="width:20px;height:20px;fill:currentColor;" viewBox="0 0 24 24">
+                    <path d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z"/>
+                </svg>
+                開始掃描
+            </button>
+        </div>
+        
+        <!-- Results Section -->
+        <div class="results-section" id="resultsSection" style="display:none;">
+            <h2>
+                <svg style="width:28px;height:28px;vertical-align:middle;margin-right:10px;fill:#667eea;" viewBox="0 0 24 24">
+                    <path d="M16,20H20V16H16M16,14H20V10H16M10,8H14V4H10M16,8H20V4H16M10,14H14V10H10M4,14H8V10H4M4,20H8V16H4M10,20H14V16H10M4,8H8V4H4M6,18H2V22H6M12,18H8V22H12M18,18H14V22H18M22,18H18V22H22Z"/>
+                </svg>
+                分析結果
+            </h2>
+            
+            <!-- 圖表區域 - 放喺最前面 -->
+            <div class="results-section" id="chartsSection" style="display:none; margin-bottom:30px;">
+                <h2>
+                    <svg style="width:28px;height:28px;vertical-align:middle;margin-right:10px;fill:#667eea;" viewBox="0 0 24 24">
+                        <path d="M22,21H2V3H4V19H6V10H10V19H12V6H16V19H18V14H22"/>
+                    </svg>
+                    智能分析圖表
+                </h2>
+                <div class="chart-grid" id="chartsContainer"></div>
+            </div>
+            
+            <!-- 個別分析卡片 -->
+            <div id="resultsContainer"></div>
+        </div>
+    </div>
+    
+    <script>
+        let uploadedFiles = [];
+        let analysisResults = [];
+        
+        async function handleFileUpload(event) {
+            const files = Array.from(event.target.files);
+            if (files.length === 0) return;
+            
+            console.log('[UPLOAD] 開始處理', files.length, '個文件');
+            
+            const resultsContainer = document.getElementById('resultsContainer');
+            resultsContainer.innerHTML = '<div class="loading"><div class="spinner"></div><p>正在解析PDF...</p></div>';
+            document.getElementById('resultsSection').style.display = 'block';
+            
+            for (const file of files) {
+                try {
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    
+                    const response = await fetch('http://localhost:62190/broker_3quilm/api/upload-pdf', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': 'Bearer test-token'
+                        },
+                        body: formData
+                    });
+                    
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    
+                    const data = await response.json();
+                    console.log('[UPLOAD] 解析成功:', data);
+                    
+                    analysisResults.push(data);
+                    displayResult(data);
+                    
+                } catch (error) {
+                    console.error('[UPLOAD] 錯誤:', error);
+                    resultsContainer.innerHTML += `<div class="result-card"><p style="color:red;">❌ ${file.name} 解析失敗: ${error.message}</p></div>`;
+                }
+            }
+            
+            // Generate charts after all files processed
+            if (analysisResults.length > 0) {
+                generateCharts();
+            }
+        }
+        
+        function displayResult(data) {
+            const container = document.getElementById('resultsContainer');
+            
+            const card = document.createElement('div');
+            card.className = 'result-card';
+            
+            // Extract data from API response
+            const brokerName = data.broker_name || '未知券商';
+            const rating = data.rating || '-';
+            const targetPrice = data.target_price ? `HK$${data.target_price.toFixed(2)}` : '-';
+            const currentPrice = data.current_price ? `HK$${data.current_price.toFixed(2)}` : '-';
+            const upside = data.upside_potential ? `${data.upside_potential > 0 ? '+' : ''}${data.upside_potential}%` : '-';
+            const aiSummary = data.ai_summary || '暫無AI摘要';
+            const filename = data.pdf_filename || '未知文件';
+            
+            card.innerHTML = `
+                <div class="result-header">
+                    <div class="company-name">${brokerName}</div>
+                    <div class="report-date">${filename}</div>
+                </div>
+                
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="label">評級</div>
+                        <div class="value">${rating}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="label">目標價</div>
+                        <div class="value">${targetPrice}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="label">當前價</div>
+                        <div class="value">${currentPrice}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="label">上行空間</div>
+                        <div class="value">${upside}</div>
+                    </div>
+                </div>
+                
+                <!-- AI解讀摘要 - 可摺疊 -->
+                <div style="margin-top:15px;">
+                    <button onclick="toggleAISummary(this)" style="width:100%; padding:12px; background:#f8f9fa; border:2px solid #e9ecef; border-radius:8px; cursor:pointer; font-size:14px; font-weight:bold; color:#495057; display:flex; justify-content:space-between; align-items:center; transition:all 0.3s;" onmouseover="this.style.background='#e9ecef'" onmouseout="this.style.background='#f8f9fa'">
+                        <span>
+                            <svg style="width:18px;height:18px;vertical-align:middle;margin-right:6px;fill:#667eea;" viewBox="0 0 24 24">
+                                <path d="M12,3C15.73,3 19,5.5 19,9C19,11.17 17.67,13.17 15.5,14.5L12,21L8.5,14.5C6.33,13.17 5,11.17 5,9C5,5.5 8.27,3 12,3M12,5C9.5,5 7.5,6.5 7.5,9C7.5,10.5 8.5,11.83 10,12.83L12,16.5L14,12.83C15.5,11.83 16.5,10.5 16.5,9C16.5,6.5 14.5,5 12,5Z"/>
+                            </svg>
+                            AI解讀摘要
+                        </span>
+                        <span class="arrow-icon" style="transition:transform 0.3s;">▼</span>
+                    </button>
+                    <div class="ai-summary-content" style="display:none; margin-top:10px; padding:15px; background:#f0f4ff; border-radius:8px; border-left:4px solid #667eea;">
+                        ${formatAISummary(aiSummary)}
+                    </div>
+                </div>
+            `;
+            
+            container.appendChild(card);
+        }
+        
+        function toggleAISummary(button) {
+            const content = button.nextElementSibling;
+            const arrow = button.querySelector('.arrow-icon');
+            
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                arrow.style.transform = 'rotate(180deg)';
+                button.style.background = '#667eea';
+                button.style.color = 'white';
+                button.style.borderColor = '#667eea';
+            } else {
+                content.style.display = 'none';
+                arrow.style.transform = 'rotate(0deg)';
+                button.style.background = '#f8f9fa';
+                button.style.color = '#495057';
+                button.style.borderColor = '#e9ecef';
+            }
+        }
+        
+        function formatAISummary(text) {
+            if (!text || text === '暫無AI摘要') return '<p style="color:#999;">暫無AI摘要</p>';
+            
+            // 將markdown格式轉換為HTML
+            let html = text
+                // # H1 標題
+                .replace(/^# (.+)$/gm, '<h1 style="font-size:20px; color:#333; margin:15px 0 10px 0; font-weight:bold;">$1</h1>')
+                // ## H2 標題
+                .replace(/^## (.+)$/gm, '<h2 style="font-size:17px; color:#444; margin:12px 0 8px 0; font-weight:bold;">$1</h2>')
+                // ### H3 標題
+                .replace(/^### (.+)$/gm, '<h3 style="font-size:15px; color:#555; margin:10px 0 6px 0; font-weight:bold;">$1</h3>')
+                // **粗體**
+                .replace(/\*\*(.+?)\*\*/g, '<strong style="color:#333;">$1</strong>')
+                // *斜體*
+                .replace(/\*(.+?)\*/g, '<em>$1</em>')
+                // - 列表項
+                .replace(/^- (.+)$/gm, '<li style="margin-left:20px; margin-bottom:5px;">$1</li>')
+                // 段落(非標題行)
+                .replace(/^(?!<[hlu]).+$/gm, (match) => {
+                    if (match.trim() === '') return '';
+                    return `<p style="color:#555; line-height:1.8; font-size:14px; margin:8px 0;">${match}</p>`;
+                })
+                // 清理空行
+                .replace(/<\/li>\s*<li/g, '</li><li')
+                .replace(/<\/p>\s*<p/g, '</p><p');
+            
+            // 將連續的<li>包裝在<ul>中
+            html = html.replace(/((?:<li[^>]*>.*?<\/li>\s*)+)/g, '<ul style="margin:8px 0; padding-left:0;">$1</ul>');
+            
+            return html;
+        }
+        
+        function generateCharts() {
+            const chartsContainer = document.getElementById('chartsContainer');
+            document.getElementById('chartsSection').style.display = 'block';
+            
+            // Clear previous charts
+            chartsContainer.innerHTML = '';
+            
+            // Generate comparison charts based on uploaded data
+            createBrokerComparisonTable(chartsContainer);
+            createTargetPriceChart(chartsContainer);
+            createUpsideChart(chartsContainer);
+        }
+        
+        function createBrokerComparisonTable(container) {
+            const card = document.createElement('div');
+            card.className = 'chart-card';
+            card.style.gridColumn = '1 / -1';
+            
+            let tableHTML = `
+                <h3>
+                    <svg style="width:22px;height:22px;vertical-align:middle;margin-right:8px;fill:#667eea;" viewBox="0 0 24 24">
+                        <path d="M16,20H20V16H16M16,14H20V10H16M10,8H14V4H10M16,8H20V4H16M10,14H14V10H10M4,14H8V10H4M4,20H8V16H4M10,20H14V16H10M4,8H8V4H4M6,18H2V22H6M12,18H8V22H12M18,18H14V22H18M22,18H18V22H22Z"/>
+                    </svg>
+                    券商評級完整對比表
+                </h3>
+                <div style="overflow-x:auto; margin-top:15px;">
+                    <table style="width:100%; border-collapse: collapse; font-size:13px;">
+                        <thead>
+                            <tr style="background:#667eea; color:white;">
+                                <th style="padding:10px; text-align:left; min-width:150px;">發布日期</th>
+                                <th style="padding:10px; text-align:left; min-width:180px;">券商名稱</th>
+                                <th style="padding:10px; text-align:left; min-width:120px;">股票名稱</th>
+                                <th style="padding:10px; text-align:left; min-width:100px;">相關行業</th>
+                                <th style="padding:10px; text-align:left; min-width:100px;">子行業</th>
+                                <th style="padding:10px; text-align:left; min-width:100px;">相關指數</th>
+                                <th style="padding:10px; text-align:center; min-width:80px;">投資評級</th>
+                                <th style="padding:10px; text-align:right; min-width:100px;">目標價 (HK$)</th>
+                                <th style="padding:10px; text-align:right; min-width:100px;">最新收市價</th>
+                                <th style="padding:10px; text-align:center; min-width:100px;">目標達成日</th>
+                                <th style="padding:10px; text-align:center; min-width:100px;">評級修訂日</th>
+                                <th style="padding:10px; text-align:center; min-width:100px;">目標價修訂日</th>
+                                <th style="padding:10px; text-align:right; min-width:80px;">上行空間</th>
+                                <th style="padding:10px; text-align:center; min-width:100px;">投資期限</th>
+                                <th style="padding:10px; text-align:left; min-width:250px;">文件路徑</th>
+                                <th style="padding:10px; text-align:left; min-width:200px;">數據來源</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+            
+            analysisResults.forEach((result, index) => {
+                const bgColor = index % 2 === 0 ? '#f8f9fa' : 'white';
+                const upsideColor = result.upside_potential > 0 ? '#28a745' : '#dc3545';
+                const rating = result.rating || '-';
+                const ratingClass = (rating === '買入' || rating === '增持') ? 'color:#28a745;font-weight:bold;' : (rating === '持有' ? 'color:#ffc107;font-weight:bold;' : 'color:#dc3545;font-weight:bold;');
+                
+                tableHTML += `
+                    <tr style="background:${bgColor};">
+                        <td style="padding:10px; border-bottom:1px solid #ddd;">${result.release_date || '-'}</td>
+                        <td style="padding:10px; border-bottom:1px solid #ddd;">${result.broker_name || '-'}</td>
+                        <td style="padding:10px; border-bottom:1px solid #ddd;">${result.stock_name || '騰訊控股'}</td>
+                        <td style="padding:10px; border-bottom:1px solid #ddd;">${result.industry || '互聯網'}</td>
+                        <td style="padding:10px; border-bottom:1px solid #ddd;">${result.sub_industry || '社交媒體'}</td>
+                        <td style="padding:10px; border-bottom:1px solid #ddd;">${result.indexes || '恒生指數'}</td>
+                        <td style="padding:10px; text-align:center; border-bottom:1px solid #ddd; ${ratingClass}">${rating}</td>
+                        <td style="padding:10px; text-align:right; border-bottom:1px solid #ddd; font-weight:bold;">${result.target_price ? result.target_price.toFixed(2) : '-'}</td>
+                        <td style="padding:10px; text-align:right; border-bottom:1px solid #ddd;">${result.current_price ? result.current_price.toFixed(2) : '-'}</td>
+                        <td style="padding:10px; text-align:center; border-bottom:1px solid #ddd;">${result.target_hit_date || '-'}</td>
+                        <td style="padding:10px; text-align:center; border-bottom:1px solid #ddd;">${result.rating_revised_date || '-'}</td>
+                        <td style="padding:10px; text-align:center; border-bottom:1px solid #ddd;">${result.target_revised_date || '-'}</td>
+                        <td style="padding:10px; text-align:right; border-bottom:1px solid #ddd; color:${upsideColor}; font-weight:bold;">
+                            ${result.upside_potential ? (result.upside_potential > 0 ? '+' : '') + result.upside_potential.toFixed(2) + '%' : '-'}
+                        </td>
+                        <td style="padding:10px; text-align:center; border-bottom:1px solid #ddd;">${result.investment_horizon || '12個月'}</td>
+                        <td style="padding:10px; border-bottom:1px solid #ddd; font-size:10px; color:#666; word-break:break-all;">
+                            ${result.upload_path || '-'}
+                        </td>
+                        <td style="padding:10px; border-bottom:1px solid #ddd; font-size:11px;">
+                            ${result.pdf_path ? `<a href="http://localhost:62190/${result.pdf_path}" target="_blank" style="color:#667eea; text-decoration:none;">${result.pdf_filename || '-'}</a>` : (result.pdf_filename || '-')}
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            tableHTML += `
+                    </tbody>
+                </table>
+                </div>
+                <div class="insight-box" style="margin-top:15px;">
+                    <h4>
+                        <svg style="width:18px;height:18px;vertical-align:middle;margin-right:6px;fill:#667eea;" viewBox="0 0 24 24">
+                            <path d="M9,21C9,21.55 9.45,22 10,22H14C14.55,22 15,21.55 15,21V20H9V21M12,2C8.14,2 5,5.14 5,9C5,11.38 6.19,13.47 8,14.74V17A1,1 0 0,0 9,18H15A1,1 0 0,0 16,17V14.74C17.81,13.47 19,11.38 19,9C19,5.14 15.86,2 12,2M14.85,13.1L14.35,13.45V16H9.65V13.45L9.15,13.1C7.8,12.21 7,10.69 7,9C7,6.24 9.24,4 12,4C14.76,4 17,6.24 17,9C17,10.69 16.2,12.21 14.85,13.1Z"/>
+                        </svg>
+                        洞察點評
+                    </h4>
+                    <p>基於${analysisResults.length}份券商報告嘅對比分析。平均目標價: HK$${calculateAverageTargetPrice()}，平均上行空間: ${calculateAverageUpside()}%</p>
+                </div>
+            `;
+            
+            card.innerHTML = tableHTML;
+            container.appendChild(card);
+        }
+        
+        function calculateAverageTargetPrice() {
+            const prices = analysisResults.filter(r => r.target_price).map(r => r.target_price);
+            return prices.length > 0 ? (prices.reduce((a, b) => a + b, 0) / prices.length).toFixed(2) : 'N/A';
+        }
+        
+        function calculateAverageUpside() {
+            const upsides = analysisResults.filter(r => r.upside_potential).map(r => r.upside_potential);
+            return upsides.length > 0 ? (upsides.reduce((a, b) => a + b, 0) / upsides.length).toFixed(2) : 'N/A';
+        }
+        
+        function createTargetPriceChart(container) {
+            const card = document.createElement('div');
+            card.className = 'chart-card';
+            card.innerHTML = `
+                <h3>🎯 目標價對比</h3>
+                <div class="chart-container">
+                    <canvas id="targetPriceChart"></canvas>
+                </div>
+                <div class="insight-box">
+                    <h4>
+                        <svg style="width:18px;height:18px;vertical-align:middle;margin-right:6px;fill:#667eea;" viewBox="0 0 24 24">
+                            <path d="M9,21C9,21.55 9.45,22 10,22H14C14.55,22 15,21.55 15,21V20H9V21M12,2C8.14,2 5,5.14 5,9C5,11.38 6.19,13.47 8,14.74V17A1,1 0 0,0 9,18H15A1,1 0 0,0 16,17V14.74C17.81,13.47 19,11.38 19,9C19,5.14 15.86,2 12,2M14.85,13.1L14.35,13.45V16H9.65V13.45L9.15,13.1C7.8,12.21 7,10.69 7,9C7,6.24 9.24,4 12,4C14.76,4 17,6.24 17,9C17,10.69 16.2,12.21 14.85,13.1Z"/>
+                        </svg>
+                        洞察點評
+                    </h4>
+                    <p>各券商對目標價嘅預測分佈，反映市場共識同分歧</p>
+                </div>
+            `;
+            container.appendChild(card);
+            
+            setTimeout(() => {
+                const ctx = document.getElementById('targetPriceChart').getContext('2d');
+                const labels = analysisResults.map(r => r.broker_name || '未知').map(name => name.split(' ')[0]);
+                const data = analysisResults.map(r => r.target_price || 0);
+                const colors = data.map(val => val > 700 ? 'rgba(40, 167, 69, 0.8)' : val > 600 ? 'rgba(255, 193, 7, 0.8)' : 'rgba(220, 53, 69, 0.8)');
+                
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: '目標價 (HK$)',
+                            data: data,
+                            backgroundColor: colors,
+                            borderColor: colors.map(c => c.replace('0.8', '1')),
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: '目標價 (HK$)'
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                display: false
+                            }
+                        }
+                    }
+                });
+            }, 100);
+        }
+        
+        function createUpsideChart(container) {
+            const card = document.createElement('div');
+            card.className = 'chart-card';
+            card.innerHTML = `
+                <h3>
+                    <svg style="width:22px;height:22px;vertical-align:middle;margin-right:8px;fill:#667eea;" viewBox="0 0 24 24">
+                        <path d="M22,21H2V3H4V19H6V10H10V19H12V6H16V19H18V14H22"/>
+                    </svg>
+                    上行空間分析
+                </h3>
+                <div class="chart-container">
+                    <canvas id="upsideChart"></canvas>
+                </div>
+                <div class="insight-box">
+                    <h4>
+                        <svg style="width:18px;height:18px;vertical-align:middle;margin-right:6px;fill:#667eea;" viewBox="0 0 24 24">
+                            <path d="M9,21C9,21.55 9.45,22 10,22H14C14.55,22 15,21.55 15,21V20H9V21M12,2C8.14,2 5,5.14 5,9C5,11.38 6.19,13.47 8,14.74V17A1,1 0 0,0 9,18H15A1,1 0 0,0 16,17V14.74C17.81,13.47 19,11.38 19,9C19,5.14 15.86,2 12,2M14.85,13.1L14.35,13.45V16H9.65V13.45L9.15,13.1C7.8,12.21 7,10.69 7,9C7,6.24 9.24,4 12,4C14.76,4 17,6.24 17,9C17,10.69 16.2,12.21 14.85,13.1Z"/>
+                        </svg>
+                        洞察點評
+                    </h4>
+                    <p>正數表示看漲潛力，負數表示看跌風險</p>
+                </div>
+            `;
+            container.appendChild(card);
+            
+            setTimeout(() => {
+                const ctx = document.getElementById('upsideChart').getContext('2d');
+                const labels = analysisResults.map(r => r.broker_name || '未知').map(name => name.split(' ')[0]);
+                const data = analysisResults.map(r => r.upside_potential || 0);
+                const colors = data.map(val => val > 0 ? 'rgba(40, 167, 69, 0.8)' : 'rgba(220, 53, 69, 0.8)');
+                
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: '上行空間 (%)',
+                            data: data,
+                            backgroundColor: colors,
+                            borderColor: colors.map(c => c.replace('0.8', '1')),
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                title: {
+                                    display: true,
+                                    text: '上行空間 (%)'
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                display: false
+                            }
+                        }
+                    }
+                });
+            }, 100);
+        }
+        
+        async function scanFolder() {
+            console.log('[SCAN] 開始掃描文件夾');
+            
+            // 讀取用戶輸入的路徑
+            const customPath = document.getElementById('pdfFolderPath').value.trim();
+            const folderPath = customPath || 'reports';
+            
+            console.log('[SCAN] 使用路徑:', folderPath);
+            
+            const resultsContainer = document.getElementById('resultsContainer');
+            resultsContainer.innerHTML = `<div class="loading"><div class="spinner"></div><p>正在掃描 ${folderPath}/ 文件夾...</p></div>`;
+            document.getElementById('resultsSection').style.display = 'block';
+            
+            try {
+                // 獲取所有PDF文件列表，傳遞自定義路徑
+                const response = await fetch(`http://localhost:62190/broker_3quilm/api/list-pdfs?path=${encodeURIComponent(folderPath)}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                const data = await response.json();
+                console.log('[SCAN] 找到', data.files.length, '個PDF文件');
+                
+                if (data.files.length === 0) {
+                    resultsContainer.innerHTML = `<div class="empty-state"><svg class="empty-state-icon" style="width:64px;height:64px;fill:#cbd5e0;" viewBox="0 0 24 24"><path d="M20,18H4V8H20M20,6H12L10,4H4A2,2 0 0,0 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V8A2,2 0 0,0 20,6Z"/></svg><p>${folderPath}/ 文件夾中沒有PDF文件</p></div>`;
+                    return;
+                }
+                
+                // 清空結果區域
+                resultsContainer.innerHTML = '';
+                
+                // 批量處理每個PDF
+                for (const filename of data.files) {
+                    try {
+                        const formData = new FormData();
+                        formData.append('filename', filename);
+                        formData.append('folder_path', folderPath);
+                        formData.append('enable_web_search', document.getElementById('enableWebSearch').checked);
+                        
+                        const analyzeResponse = await fetch('http://localhost:62190/broker_3quilm/api/analyze-existing-pdf', {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': 'Bearer test-token'
+                            },
+                            body: formData
+                        });
+                        
+                        if (!analyzeResponse.ok) {
+                            const errorText = await analyzeResponse.text();
+                            console.error('[SCAN] 解析失敗:', filename, errorText);
+                            continue;
+                        }
+                        
+                        const result = await analyzeResponse.json();
+                        console.log('[SCAN] 解析成功:', filename, result);
+                        console.log('[SCAN] upload_path:', result.upload_path);
+                        
+                        analysisResults.push(result);
+                        
+                    } catch (error) {
+                        console.error('[SCAN] 錯誤:', filename, error);
+                    }
+                }
+                
+                // 先生成圖表(放喺最前面)
+                if (analysisResults.length > 0) {
+                    generateCharts();
+                    
+                    // 然後生成個別分析卡片
+                    analysisResults.forEach(result => {
+                        displayResult(result);
+                    });
+                }
+                
+            } catch (error) {
+                console.error('[SCAN] 掃描失敗:', error);
+                resultsContainer.innerHTML = `<div class="result-card"><p style="color:red;">❌ 掃描失敗: ${error.message}</p></div>`;
+            }
+        }
+    </script>
+</body>
+</html>

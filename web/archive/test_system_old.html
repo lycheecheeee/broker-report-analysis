@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系統測試頁面</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f7fa; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { color: #333; margin-bottom: 20px; text-align: center; }
+        .test-card { background: white; border-radius: 10px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .test-title { font-size: 1.2rem; font-weight: 600; margin-bottom: 15px; color: #667eea; }
+        .test-result { padding: 10px; border-radius: 6px; margin: 5px 0; }
+        .success { background: #d4edda; color: #155724; border-left: 4px solid #28a745; }
+        .error { background: #f8d7da; color: #721c24; border-left: 4px solid #dc3545; }
+        .loading { background: #fff3cd; color: #856404; border-left: 4px solid #ffc107; }
+        button { background: #667eea; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; margin: 5px; }
+        button:hover { background: #5568d3; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 6px; overflow-x: auto; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Broker Report Analysis 系統測試</h1>
+        
+        <!-- Test 1: API Health -->
+        <div class="test-card">
+            <div class="test-title">測試 1: API 健康檢查</div>
+            <button onclick="testAPIHealth()">運行測試</button>
+            <div id="health-result"></div>
+        </div>
+
+        <!-- Test 2: Login -->
+        <div class="test-card">
+            <div class="test-title">測試 2: 登入功能</div>
+            <button onclick="testLogin()">運行測試</button>
+            <div id="login-result"></div>
+        </div>
+
+        <!-- Test 3: Scan Folder -->
+        <div class="test-card">
+            <div class="test-title">測試 3: 掃描資料夾</div>
+            <button onclick="testScanFolder()">運行測試</button>
+            <div id="scan-result"></div>
+        </div>
+
+        <!-- Test 4: Add to Queue -->
+        <div class="test-card">
+            <div class="test-title">測試 4: 加入異步隊列</div>
+            <button onclick="testAddToQueue()">運行測試</button>
+            <div id="queue-result"></div>
+        </div>
+
+        <!-- Test 5: Check Task Status -->
+        <div class="test-card">
+            <div class="test-title">測試 5: 查詢任務狀態</div>
+            <button onclick="testTaskStatus()" id="status-btn" disabled>運行測試</button>
+            <div id="status-result"></div>
+        </div>
+
+        <!-- Test 6: Get Results -->
+        <div class="test-card">
+            <div class="test-title">測試 6: 獲取分析結果</div>
+            <button onclick="testGetResults()" id="results-btn" disabled>運行測試</button>
+            <div id="results-result"></div>
+        </div>
+    </div>
+
+    <script>
+        const BASE_URL = 'http://127.0.0.1:5000';
+        let authToken = '';
+        let currentTaskId = '';
+        let currentAnalysisId = '';
+
+        function showResult(elementId, status, message, data = null) {
+            const elem = document.getElementById(elementId);
+            const className = status === 'success' ? 'success' : status === 'error' ? 'error' : 'loading';
+            let html = `<div class="test-result ${className}"><strong>${message}</strong>`;
+            if (data) {
+                html += `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+            }
+            html += `</div>`;
+            elem.innerHTML = html;
+        }
+
+        async function testAPIHealth() {
+            try {
+                showResult('health-result', 'loading', '正在檢查...');
+                const response = await fetch(`${BASE_URL}/api/health`);
+                const data = await response.json();
+                showResult('health-result', 'success', '✅ API 正常運行', data);
+            } catch (error) {
+                showResult('health-result', 'error', `❌ API 錯誤: ${error.message}`);
+            }
+        }
+
+        async function testLogin() {
+            try {
+                showResult('login-result', 'loading', '正在登入...');
+                const response = await fetch(`${BASE_URL}/api/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: 'admin', password: 'admin123' })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    authToken = data.token;
+                    showResult('login-result', 'success', '✅ 登入成功', {
+                        token: authToken.substring(0, 30) + '...',
+                        user_id: data.user_id,
+                        role: data.role
+                    });
+                } else {
+                    showResult('login-result', 'error', `❌ 登入失敗: ${data.error}`);
+                }
+            } catch (error) {
+                showResult('login-result', 'error', `❌ 錯誤: ${error.message}`);
+            }
+        }
+
+        async function testScanFolder() {
+            if (!authToken) {
+                showResult('scan-result', 'error', '❌ 請先登入');
+                return;
+            }
+
+            try {
+                showResult('scan-result', 'loading', '正在掃描...');
+                const response = await fetch(`${BASE_URL}/api/v1/scan/folder`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({
+                        folder_path: 'C:\\Users\\user\\Desktop\\Broker report 分析\\700'
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult('scan-result', 'success', `✅ 找到 ${data.pdf_count} 份 PDF`, data);
+                } else {
+                    showResult('scan-result', 'error', `❌ 掃描失敗: ${data.error}`);
+                }
+            } catch (error) {
+                showResult('scan-result', 'error', `❌ 錯誤: ${error.message}`);
+            }
+        }
+
+        async function testAddToQueue() {
+            if (!authToken) {
+                showResult('queue-result', 'error', '❌ 請先登入');
+                return;
+            }
+
+            try {
+                showResult('queue-result', 'loading', '正在加入隊列...');
+                
+                const formData = new FormData();
+                formData.append('file_path', 'C:\\Users\\user\\Desktop\\Broker report 分析\\700\\BOA-700.pdf');
+                formData.append('company_name', '騰訊控股');
+                formData.append('stock_code', '00700.HK');
+
+                const response = await fetch(`${BASE_URL}/api/v1/analyze/path`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: formData
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    currentTaskId = data.task_id;
+                    currentAnalysisId = data.analysis_id;
+                    showResult('queue-result', 'success', `✅ 已加入隊列`, data);
+                    
+                    // Enable next tests
+                    document.getElementById('status-btn').disabled = false;
+                    document.getElementById('results-btn').disabled = false;
+                } else {
+                    showResult('queue-result', 'error', `❌ 加入隊列失敗: ${data.error}`);
+                }
+            } catch (error) {
+                showResult('queue-result', 'error', `❌ 錯誤: ${error.message}`);
+            }
+        }
+
+        async function testTaskStatus() {
+            if (!authToken || !currentTaskId) {
+                showResult('status-result', 'error', '❌ 無效的任務 ID');
+                return;
+            }
+
+            try {
+                showResult('status-result', 'loading', '正在查詢狀態...');
+                const response = await fetch(`${BASE_URL}/api/v1/task/status/${currentTaskId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult('status-result', 'success', `✅ 任務狀態: ${data.status}`, data);
+                } else {
+                    showResult('status-result', 'error', `❌ 查詢失敗: ${data.error || data.message}`);
+                }
+            } catch (error) {
+                showResult('status-result', 'error', `❌ 錯誤: ${error.message}`);
+            }
+        }
+
+        async function testGetResults() {
+            if (!authToken || !currentAnalysisId) {
+                showResult('results-result', 'error', '❌ 無效的分析 ID');
+                return;
+            }
+
+            try {
+                showResult('results-result', 'loading', '正在獲取結果...');
+                const response = await fetch(`${BASE_URL}/api/results?analysis_id=${currentAnalysisId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult('results-result', 'success', `✅ 獲取到 ${data.results?.length || 0} 條結果`, data);
+                } else {
+                    showResult('results-result', 'error', `❌ 獲取失敗: ${data.error}`);
+                }
+            } catch (error) {
+                showResult('results-result', 'error', `❌ 錯誤: ${error.message}`);
+            }
+        }
+    </script>
+</body>
+</html>

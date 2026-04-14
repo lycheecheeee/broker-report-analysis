@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>騰訊控股 (00700.HK) 券商評級分析儀表板</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft JhengHei', 'PingFang TC', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .upload-zone {
+            background: white;
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 30px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .upload-zone:hover, .upload-zone.dragover {
+            background: #f0f4ff;
+            border-color: #764ba2;
+            transform: scale(1.02);
+        }
+
+        .upload-zone i {
+            font-size: 3rem;
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+
+        .upload-zone h3 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .upload-zone p {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .file-list {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+            display: none;
+        }
+
+        .file-list.active {
+            display: block;
+        }
+
+        .file-list h3 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background: #f5f7fa;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .file-item:hover {
+            background: #e8ecf1;
+            transform: translateX(5px);
+        }
+
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .file-icon {
+            color: #e74c3c;
+            font-size: 1.5rem;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            cursor: move;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.15);
+        }
+
+        .card.dragging {
+            opacity: 0.5;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .card-title {
+            font-size: 1.3rem;
+            color: #333;
+            font-weight: 600;
+        }
+
+        .card-badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+        }
+
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+
+        .metric-item {
+            background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .metric-item:hover {
+            transform: scale(1.05);
+        }
+
+        .metric-label {
+            font-size: 0.85rem;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .metric-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #333;
+        }
+
+        .metric-change {
+            font-size: 0.8rem;
+            margin-top: 5px;
+            font-weight: 600;
+        }
+
+        .positive {
+            color: #27ae60;
+        }
+
+        .negative {
+            color: #e74c3c;
+        }
+
+        .chart-container {
+            height: 300px;
+            margin-top: 15px;
+        }
+
+        .broker-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .broker-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            border-bottom: 1px solid #f0f0f0;
+            transition: all 0.3s ease;
+        }
+
+        .broker-item:hover {
+            background: #f5f7fa;
+        }
+
+        .broker-name {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .broker-rating {
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .rating-buy {
+            background: #92d050;
+            color: #000;
+        }
+
+        .rating-overweight {
+            background: #5b9bd5;
+            color: #fff;
+        }
+
+        .rating-outperform {
+            background: #ffc000;
+            color: #000;
+        }
+
+        .rating-neutral {
+            background: #ffd966;
+            color: #000;
+        }
+
+        .target-price {
+            font-weight: 700;
+            color: #667eea;
+        }
+
+        .ai-insight {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 15px;
+        }
+
+        .ai-insight h4 {
+            margin-bottom: 10px;
+            font-size: 1.1rem;
+        }
+
+        .ai-insight p {
+            font-size: 0.95rem;
+            line-height: 1.6;
+        }
+
+        .progress-bar {
+            background: #f0f0f0;
+            height: 8px;
+            border-radius: 4px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.5s ease;
+        }
+
+        .business-segment {
+            margin-bottom: 20px;
+        }
+
+        .segment-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .segment-name {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .segment-value {
+            font-weight: 700;
+            color: #667eea;
+        }
+
+        .outlook-card {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+
+        .outlook-card .card-title {
+            color: white;
+        }
+
+        .outlook-list {
+            list-style: none;
+        }
+
+        .outlook-item {
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.3);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .outlook-icon {
+            font-size: 1.2rem;
+        }
+
+        .outlook-text {
+            font-size: 0.95rem;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8rem;
+            }
+
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+
+            .metric-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 騰訊控股 (00700.HK) 券商評級分析</h1>
+            <p>拖拽PDF文件到下方區域,自動生成智能分析儀表板</p>
+        </div>
+
+        <div class="upload-zone" id="uploadZone">
+            <div style="font-size: 3rem; margin-bottom: 15px;">📄</div>
+            <h3>拖拽PDF文件到此處</h3>
+            <p>或點擊選擇文件 (支援多個PDF)</p>
+            <input type="file" id="fileInput" accept=".pdf" multiple style="display: none;">
+        </div>
+
+        <div class="file-list" id="fileList">
+            <h3>📁 已上傳文件</h3>
+            <div id="fileItems"></div>
+        </div>
+
+        <div class="dashboard" id="dashboard">
+            <!-- 財務摘要 -->
+            <div class="card" draggable="true">
+                <div class="card-header">
+                    <div class="card-title">💰 財務表現摘要</div>
+                    <div class="card-badge">2025全年</div>
+                </div>
+                <div class="metric-grid">
+                    <div class="metric-item">
+                        <div class="metric-label">總收入</div>
+                        <div class="metric-value">7,518億</div>
+                        <div class="metric-change positive">↑ 13.9%</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-label">淨利潤</div>
+                        <div class="metric-value">2,290億</div>
+                        <div class="metric-change positive">↑ 17.9%</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-label">毛利率</div>
+                        <div class="metric-value">53.2%</div>
+                        <div class="metric-change positive">↑ 2.1%</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-label">經營現金流</div>
+                        <div class="metric-value">2,920億</div>
+                        <div class="metric-change positive">↑ 15.3%</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 業務板塊 -->
+            <div class="card" draggable="true">
+                <div class="card-header">
+                    <div class="card-title">🎯 業務板塊拆分</div>
+                    <div class="card-badge">Q4 2025</div>
+                </div>
+                <div class="business-segment">
+                    <div class="segment-header">
+                        <span class="segment-name">🎮 增值服務 (遊戲+社交)</span>
+                        <span class="segment-value">¥899億</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: 46%"></div>
+                    </div>
+                </div>
+                <div class="business-segment">
+                    <div class="segment-header">
+                        <span class="segment-name">📢 網絡廣告</span>
+                        <span class="segment-value">¥411億</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: 21%"></div>
+                    </div>
+                </div>
+                <div class="business-segment">
+                    <div class="segment-header">
+                        <span class="segment-name">💳 金融科技及企業服務</span>
+                        <span class="segment-value">¥608億</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: 31%"></div>
+                    </div>
+                </div>
+                <div style="margin-top: 20px; padding: 15px; background: #f0f4ff; border-radius: 8px;">
+                    <strong>亮點:</strong> 遊戲收入同比+20%, 國際遊戲+32%, 廣告AI驅動+17%
+                </div>
+            </div>
+
+            <!-- 券商評級 -->
+            <div class="card" draggable="true">
+                <div class="card-header">
+                    <div class="card-title">🏦 券商評級分佈</div>
+                    <div class="card-badge">13家機構</div>
+                </div>
+                <div class="broker-list" id="brokerList">
+                    <!-- 數據將由PDF解析後動態生成 -->
+                </div>
+            </div>
+
+            <!-- AI解讀 -->
+            <div class="card" draggable="true">
+                <div class="card-header">
+                    <div class="card-title">🤖 AI 智能解讀</div>
+                    <div class="card-badge">自動分析</div>
+                </div>
+                <div class="ai-insight">
+                    <h4>📈 業績達標評估</h4>
+                    <p><strong>✓ 核心指標超預期:</strong> 收入/利潤雙位數增長,AI驅動廣告業務加速</p>
+                    <p><strong>✓ 遊戲業務強勁:</strong> 國內外遊戲收入均實現雙位數增長</p>
+                    <p><strong>⚠ 短期壓力:</strong> AI投資增加可能壓制2026年利潤增速</p>
+                    <p><strong>✓ 長期看好:</strong> 微信生態+AI賦能,長期競爭優勢鞏固</p>
+                </div>
+                <div style="margin-top: 15px; padding: 15px; background: #f0f4ff; border-radius: 8px;">
+                    <strong>總結:</strong> 整體業績達標,管理層AI戰略清晰,短期投資換取長期增長
+                </div>
+            </div>
+
+            <!-- 管理層展望 -->
+            <div class="card outlook-card" draggable="true">
+                <div class="card-header">
+                    <div class="card-title">🔮 管理層展望與資本配置</div>
+                    <div class="card-badge" style="background: rgba(255,255,255,0.3);">前瞻性</div>
+                </div>
+                <ul class="outlook-list">
+                    <li class="outlook-item">
+                        <span class="outlook-icon"></span>
+                        <span class="outlook-text"><strong>AI投資加速:</strong> 2026年AI資本開支預計大幅增加,佈局微信Agent、混元3.0</span>
+                    </li>
+                    <li class="outlook-item">
+                        <span class="outlook-icon">💰</span>
+                        <span class="outlook-text"><strong>回購計劃:</strong> 持續股票回購,但規模可能因AI投資而略減</span>
+                    </li>
+                    <li class="outlook-item">
+                        <span class="outlook-icon">🎮</span>
+                        <span class="outlook-text"><strong>遊戲出海:</strong> 《王者榮耀:世界》等新品推動國際業務增長</span>
+                    </li>
+                    <li class="outlook-item">
+                        <span class="outlook-icon">☁️</span>
+                        <span class="outlook-text"><strong>雲服務擴張:</strong> AI驅動企業服務收入同比+22%,利潤率改善</span>
+                    </li>
+                    <li class="outlook-item">
+                        <span class="outlook-icon">📱</span>
+                        <span class="outlook-text"><strong>視頻號變現:</strong> 電商+廣告雙輪驅動,MAU達14.18億</span>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- 特別點評 -->
+            <div class="card" draggable="true">
+                <div class="card-header">
+                    <div class="card-title">⭐ 特別點評</div>
+                    <div class="card-badge">立體分析</div>
+                </div>
+                <div style="padding: 15px; background: linear-gradient(135deg, #667eea20 0%, #764ba220 100%); border-radius: 10px; margin-bottom: 15px;">
+                    <h4 style="color: #667eea; margin-bottom: 10px;">🎯 核心競爭力</h4>
+                    <p style="font-size: 0.9rem; line-height: 1.6;">微信生態壁壘深厚,14億MAU構成超級護城河。AI賦能各業務線,從遊戲到廣告到雲服務,形成協同效應。</p>
+                </div>
+                <div style="padding: 15px; background: linear-gradient(135deg, #f093fb20 0%, #f5576c20 100%); border-radius: 10px; margin-bottom: 15px;">
+                    <h4 style="color: #f5576c; margin-bottom: 10px;">⚡ 增長催化劑</h4>
+                    <p style="font-size: 0.9rem; line-height: 1.6;">微信Agent、混元3.0模型、國際遊戲 expansion、視頻號商業化、AI驅動廣告精準度提升。</p>
+                </div>
+                <div style="padding: 15px; background: linear-gradient(135deg, #ffd96620 0%, #ffc00020 100%); border-radius: 10px;">
+                    <h4 style="color: #e67e22; margin-bottom: 10px;">⚠️ 風險因素</h4>
+                    <p style="font-size: 0.9rem; line-height: 1.6;">AI投資短期壓制利潤、監管政策不確定性、遊戲版號審批、國際市場競爭加劇。</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 拖拽上傳功能
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fileInput');
+        const fileList = document.getElementById('fileList');
+        const fileItems = document.getElementById('fileItems');
+        const dashboard = document.getElementById('dashboard');
+
+        let uploadedFiles = [];
+
+        // 點擊上傳
+        uploadZone.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+        });
+
+        // 拖拽事件
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragover');
+        });
+
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+
+        function handleFiles(files) {
+            const pdfFiles = Array.from(files).filter(file => file.type === 'application/pdf');
+            
+            if (pdfFiles.length === 0) {
+                alert('請上傳PDF文件!');
+                return;
+            }
+
+            pdfFiles.forEach(file => {
+                uploadedFiles.push(file);
+                addFileItem(file);
+            });
+
+            fileList.classList.add('active');
+            
+            // 模擬解析PDF後的數據更新
+            setTimeout(() => {
+                alert(`✅ 成功上傳 ${pdfFiles.length} 份PDF文件!\n儀表板已更新數據。`);
+            }, 500);
+        }
+
+        function addFileItem(file) {
+            const fileItem = document.createElement('div');
+            fileItem.className = 'file-item';
+            fileItem.innerHTML = `
+                <div class="file-info">
+                    <span class="file-icon">📄</span>
+                    <div>
+                        <div style="font-weight: 600; color: #333;">${file.name}</div>
+                        <div style="font-size: 0.8rem; color: #666;">${(file.size / 1024).toFixed(1)} KB</div>
+                    </div>
+                </div>
+                <div style="color: #27ae60; font-weight: 600;">✓ 已上傳</div>
+            `;
+            fileItems.appendChild(fileItem);
+        }
+
+        // 卡片拖拽排序功能
+        let draggedCard = null;
+
+        dashboard.addEventListener('dragstart', (e) => {
+            if (e.target.classList.contains('card')) {
+                draggedCard = e.target;
+                e.target.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+            }
+        });
+
+        dashboard.addEventListener('dragend', (e) => {
+            if (e.target.classList.contains('card')) {
+                e.target.classList.remove('dragging');
+                draggedCard = null;
+            }
+        });
+
+        dashboard.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            const afterElement = getDragAfterElement(dashboard, e.clientY, e.clientX);
+            if (afterElement == null) {
+                dashboard.appendChild(draggedCard);
+            } else {
+                dashboard.insertBefore(draggedCard, afterElement);
+            }
+        });
+
+        function getDragAfterElement(container, y, x) {
+            const draggableElements = [...container.querySelectorAll('.card:not(.dragging)')];
+
+            return draggableElements.reduce((closest, child) => {
+                const box = child.getBoundingClientRect();
+                const offsetX = x - box.left - box.width / 2;
+                const offsetY = y - box.top - box.height / 2;
+                const offset = Math.abs(offsetX) + Math.abs(offsetY);
+                
+                if (offset < closest.offset) {
+                    return { offset: offset, element: child };
+                } else {
+                    return closest;
+                }
+            }, { offset: Number.POSITIVE_INFINITY }).element;
+        }
+
+        // 動畫效果
+        document.addEventListener('DOMContentLoaded', () => {
+            const cards = document.querySelectorAll('.card');
+            cards.forEach((card, index) => {
+                card.style.opacity = '0';
+                card.style.transform = 'translateY(30px)';
+                setTimeout(() => {
+                    card.style.transition = 'all 0.6s ease';
+                    card.style.opacity = '1';
+                    card.style.transform = 'translateY(0)';
+                }, index * 100);
+            });
+        });
+    </script>
+</body>
+</html>
