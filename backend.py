@@ -24,7 +24,8 @@ def log_request():
 
 # 配置
 SECRET_KEY = os.environ.get('SECRET_KEY', 'tencent-broker-analysis-secret-key-2026')
-DATABASE = os.environ.get('DATABASE_URL', 'broker_analysis.db')
+# Vercel serverless 環境使用內存數據庫（:memory:），本地環境使用文件數據庫
+DATABASE = os.environ.get('DATABASE_URL', ':memory:' if os.environ.get('VERCEL') else 'broker_analysis.db')
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), '700')
 OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY', '')
 OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions'
