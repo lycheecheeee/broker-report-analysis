@@ -34,6 +34,9 @@ OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions'
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
+# 數據庫初始化標誌
+_db_initialized = False
+
 def init_db():
     """初始化數據庫"""
     conn = sqlite3.connect(DATABASE)
@@ -163,17 +166,18 @@ def init_db():
     conn.commit()
     conn.close()
 
-# 初始化數據庫（Vercel serverless 環境也需要）
-# 注意：Vercel 的文件系統是只讀的，所以我們需要處理這個情況
-try:
-    init_db()
-    print("[INIT] ✅ Database initialized successfully")
-except Exception as e:
-    import traceback
-    error_msg = f"[INIT] ⚠️ Database initialization error: {str(e)}"
-    print(error_msg)
-    print(traceback.format_exc())
-    print("[INIT] ℹ️  Continuing anyway - database will be created on first write")
+def ensure_db_initialized():
+    """確保數據庫已初始化（懶加載）"""
+    global _db_initialized
+    if not _db_initialized:
+        try:
+            init_db()
+            _db_initialized = True
+            print("[DB] ✅ Database initialized")
+        except Exception as e:
+            print(f"[DB] ⚠️ Initialization error: {e}")
+            # 即使失敗也標記為已初始化，避免重複嘗試
+            _db_initialized = True
 
 def hash_password(password):
     """密碼哈希"""
@@ -1771,17 +1775,23 @@ def export_analysis_report():
 @app.route('/api/test', methods=['GET'])
 def test_endpoint():
     """簡單測試端點"""
-    return jsonify({
-        'status': 'ok',
-        'message': 'Backend is running!',
-        'timestamp': datetime.now().isoformat()
-    }), 200
+    try:
+        ensure_db_initialized()
+        return jsonify({
+            'status': 'ok',
+            'message': 'Backend is running!',
+            'timestamp': datetime.now().isoformat(),
+            'database': DATABASE
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 # Health check endpoint
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """健康檢查端點"""
     try:
+        ensure_db_initialized()
         # 檢查數據庫連接
         conn = sqlite3.connect(DATABASE)
         cursor = conn.cursor()
