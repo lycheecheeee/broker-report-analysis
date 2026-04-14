@@ -168,8 +168,11 @@ try:
     init_db()
     print("[INIT] ✅ Database initialized successfully")
 except Exception as e:
-    print(f"[INIT] ⚠️ Database initialization warning: {e}")
-    print("[INIT] ℹ️  This is expected on Vercel - database will be created on first write")
+    import traceback
+    error_msg = f"[INIT] ⚠️ Database initialization error: {str(e)}"
+    print(error_msg)
+    print(traceback.format_exc())
+    print("[INIT] ℹ️  Continuing anyway - database will be created on first write")
 
 def hash_password(password):
     """密碼哈希"""
@@ -1812,6 +1815,3 @@ if __name__ == '__main__':
     print("="*60 + "\n")
     
     app.run(debug=True, port=62190, use_reloader=False)
-
-# Vercel deployment handler
-app = app  # Export Flask app for Vercel
