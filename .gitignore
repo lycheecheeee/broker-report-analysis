@@ -59,3 +59,4 @@ charts/*.png
 # Temporary files
 *.tmp
 temp/
+.vercel
