@@ -23,10 +23,10 @@ def log_request():
 
 
 # 配置
-SECRET_KEY = 'tencent-broker-analysis-secret-key-2026'
-DATABASE = 'broker_analysis.db'
+SECRET_KEY = os.environ.get('SECRET_KEY', 'tencent-broker-analysis-secret-key-2026')
+DATABASE = os.environ.get('DATABASE_URL', 'broker_analysis.db')
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), '700')
-OPENROUTER_API_KEY = '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'
+OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY', '')
 OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions'
 
 # 確保上傳文件夾存在
@@ -659,6 +659,22 @@ def generate_ai_summary_with_fields(broker_name, rating, target_price, text, fil
             'HTTP-Referer': 'http://localhost:62190',
             'X-Title': 'Broker Report Analysis'
         }
+        
+        # 檢查 API Key 是否設置
+        if not OPENROUTER_API_KEY or OPENROUTER_API_KEY.strip() == '':
+            print("[AI FIELDS] ⚠️ OPENROUTER_API_KEY 未設置，使用備用方案")
+            fallback_summary = f"基於{broker_name}的研報分析：\n\n• 評級: {rating}\n• 目標價: HK${target_price:.2f if target_price else '未明確'}\n\n（註：AI服務未配置，顯示基本信息）"
+            fallback_data = {
+                'release_date': '-',
+                'stock_name': '-',
+                'industry': '-',
+                'sub_industry': '-',
+                'indexes': '-',
+                'investment_horizon': '-',
+                'inferred_fields': [],
+                'ai_summary': fallback_summary
+            }
+            return fallback_summary, fallback_data
         
         payload = {
             'model': 'qwen/qwen-2.5-7b-instruct',  # 使用免費模型
@@ -1738,6 +1754,32 @@ def export_analysis_report():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
+# Health check endpoint
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    """健康檢查端點"""
+    try:
+        # 檢查數據庫連接
+        conn = sqlite3.connect(DATABASE)
+        cursor = conn.cursor()
+        cursor.execute('SELECT COUNT(*) FROM analysis_results')
+        record_count = cursor.fetchone()[0]
+        conn.close()
+        
+        return jsonify({
+            'status': 'healthy',
+            'timestamp': datetime.now().isoformat(),
+            'database': 'connected',
+            'total_records': record_count,
+            'version': '1.0.0'
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'status': 'unhealthy',
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
 if __name__ == '__main__':
     init_db()
     
@@ -1747,6 +1789,7 @@ if __name__ == '__main__':
     print(f"📍 Server: http://localhost:62190")
     print(f"📍 Login: http://localhost:62190/broker_3quilm/")
     print(f"📍 Dashboard: http://localhost:62190/broker_3quilm/dashboard")
+    print(f"📍 Health Check: http://localhost:62190/api/health")
     print("="*60 + "\n")
     
     app.run(debug=True, port=62190, use_reloader=False)
