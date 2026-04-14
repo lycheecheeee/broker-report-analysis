@@ -162,6 +162,13 @@ def init_db():
     conn.commit()
     conn.close()
 
+# 初始化數據庫（Vercel serverless 環境也需要）
+try:
+    init_db()
+    print("[INIT] ✅ Database initialized successfully")
+except Exception as e:
+    print(f"[INIT] ⚠️ Database initialization warning: {e}")
+
 def hash_password(password):
     """密碼哈希"""
     return hashlib.sha256(password.encode()).hexdigest()
