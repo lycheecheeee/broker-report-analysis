@@ -163,11 +163,13 @@ def init_db():
     conn.close()
 
 # 初始化數據庫（Vercel serverless 環境也需要）
+# 注意：Vercel 的文件系統是只讀的，所以我們需要處理這個情況
 try:
     init_db()
     print("[INIT] ✅ Database initialized successfully")
 except Exception as e:
     print(f"[INIT] ⚠️ Database initialization warning: {e}")
+    print("[INIT] ℹ️  This is expected on Vercel - database will be created on first write")
 
 def hash_password(password):
     """密碼哈希"""
@@ -1760,6 +1762,16 @@ def export_analysis_report():
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
+# Simple test endpoint (no database required)
+@app.route('/api/test', methods=['GET'])
+def test_endpoint():
+    """簡單測試端點"""
+    return jsonify({
+        'status': 'ok',
+        'message': 'Backend is running!',
+        'timestamp': datetime.now().isoformat()
+    }), 200
 
 # Health check endpoint
 @app.route('/api/health', methods=['GET'])
