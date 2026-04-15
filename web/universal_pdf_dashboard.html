@@ -332,6 +332,27 @@
             pointer-events: none;
         }
         
+        /* 市場情緒摘要卡片 */
+        .sentiment-card {
+            grid-column: 1 / -1;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+        }
+        
+        .sentiment-card h3 {
+            color: white !important;
+        }
+        
+        .sentiment-text {
+            font-size: 16px;
+            line-height: 1.8;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+        }
+        
         /* Toast Notification System */
         .toast-container {
             position: fixed;
@@ -1338,12 +1359,17 @@
                 `;
                 container.appendChild(exportBtnDiv);
                 
-                // 1. 評級分佈圓餅圖
-                if (data.rating_distribution && data.rating_distribution.length > 0) {
-                    createRatingPieChart(data.rating_distribution, container);
+                // 0. 市場情緒摘要（最重要，放喺最頂）
+                if (data.market_sentiment) {
+                    createMarketSentimentCard(data.market_sentiment, data.price_statistics, container);
                 }
                 
-                // 2. 券商覆蓋柱狀圖
+                // 1. 評級分佈圓餅圖
+                if (data.rating_distribution && data.rating_distribution.length > 0) {
+                    createRatingPieChart(data.rating_distribution, data.price_statistics, container);
+                }
+                
+                // 2. 券商覆蓋柱狀圖（增強版）
                 if (data.broker_coverage && data.broker_coverage.length > 0) {
                     createBrokerBarChart(data.broker_coverage, container);
                 }
@@ -1353,7 +1379,7 @@
                     createTrendLineChart(data.trend_data, container);
                 }
                 
-                // 4. 目標價統計卡片
+                // 4. 目標價統計卡片（增強版）
                 if (data.price_statistics) {
                     createPriceStatsCard(data.price_statistics, container);
                 }
@@ -1394,8 +1420,54 @@
             }
         }
         
+        // 創建市場情緒摘要卡片
+        function createMarketSentimentCard(sentiment, stats, container) {
+            const chartDiv = document.createElement('div');
+            chartDiv.className = 'glass-card sentiment-card';
+            chartDiv.style.marginBottom = '20px';
+            
+            // 計算多空比例視覺化
+            const totalRated = stats.total_rated || 0;
+            const bullPercent = totalRated > 0 ? ((stats.bull_count / totalRated) * 100).toFixed(1) : 0;
+            const bearPercent = totalRated > 0 ? ((stats.bear_count / totalRated) * 100).toFixed(1) : 0;
+            const neutralPercent = totalRated > 0 ? ((stats.neutral_count / totalRated) * 100).toFixed(1) : 0;
+            
+            chartDiv.innerHTML = `
+                <h3 style="color:white;margin-bottom:15px;display:flex;align-items:center;gap:10px;">
+                    <svg style="width:28px;height:28px;fill:white;" viewBox="0 0 24 24">
+                        <path d="M12,2C17.53,2 22,6.47 22,12C22,17.53 17.53,22 12,22C6.47,22 2,17.53 2,12C2,6.47 6.47,2 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6M12,8A4,4 0 0,0 8,12A4,4 0 0,0 12,16A4,4 0 0,0 16,12A4,4 0 0,0 12,8Z"/>
+                    </svg>
+                    🎯 市場情緒分析
+                </h3>
+                <div class="sentiment-text">
+                    <p style="margin-bottom:15px;font-weight:500;">${sentiment}</p>
+                    
+                    <!-- 多空比例條 -->
+                    ${totalRated > 0 ? `
+                    <div style="margin-top:15px;">
+                        <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px;">
+                            <span>📈 多頭（買入/增持）：${stats.bull_count} 家 (${bullPercent}%)</span>
+                            <span>📊 中性：${stats.neutral_count} 家 (${neutralPercent}%)</span>
+                            <span>📉 空頭（賣出/減持）：${stats.bear_count} 家 (${bearPercent}%)</span>
+                        </div>
+                        <div style="height:8px;background:rgba(255,255,255,0.2);border-radius:4px;overflow:hidden;display:flex;">
+                            <div style="width:${bullPercent}%;background:#10b981;transition:width 0.5s;"></div>
+                            <div style="width:${neutralPercent}%;background:#f59e0b;transition:width 0.5s;"></div>
+                            <div style="width:${bearPercent}%;background:#ef4444;transition:width 0.5s;"></div>
+                        </div>
+                    </div>
+                    ` : ''}
+                </div>
+                <p style="margin-top:12px;font-size:12px;color:rgba(255,255,255,0.8);text-align:center;">
+                    💡 數據來源：Supabase 雲端數據庫實時查詢 | 最後更新：${new Date().toLocaleString('zh-HK')}
+                </p>
+            `;
+            
+            container.appendChild(chartDiv);
+        }
+        
         // 創建評級分佈圓餅圖
-        function createRatingPieChart(ratingData, container) {
+        function createRatingPieChart(ratingData, stats, container) {
             const chartDiv = document.createElement('div');
             chartDiv.className = 'glass-card';
             chartDiv.style.marginBottom = '20px';
@@ -1404,8 +1476,37 @@
             canvas.id = 'ratingPieChart';
             canvas.style.maxHeight = '400px';
             
-            chartDiv.innerHTML = '<h3 style="color:#667eea;margin-bottom:15px;">📊 評級分佈</h3>';
+            chartDiv.innerHTML = `
+                <h3 style="color:#667eea;margin-bottom:15px;display:flex;align-items:center;gap:8px;">
+                    <svg style="width:24px;height:24px;fill:#667eea;" viewBox="0 0 24 24">
+                        <path d="M12,2C17.53,2 22,6.47 22,12C22,17.53 17.53,22 12,22C6.47,22 2,17.53 2,12C2,6.47 6.47,2 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6M12,8A4,4 0 0,0 8,12A4,4 0 0,0 12,16A4,4 0 0,0 16,12A4,4 0 0,0 12,8Z"/>
+                    </svg>
+                    📊 評級分佈
+                </h3>`;
             chartDiv.appendChild(canvas);
+            
+            // 添加統計摘要
+            const totalRated = stats.total_rated || 0;
+            if (totalRated > 0) {
+                const summaryDiv = document.createElement('div');
+                summaryDiv.style.cssText = 'margin-top:12px;padding:12px;background:#f7fafc;border-radius:8px;font-size:13px;';
+                summaryDiv.innerHTML = `
+                    <div style="display:flex;justify-content:space-around;text-align:center;">
+                        <div>
+                            <div style="color:#10b981;font-size:20px;font-weight:bold;">${stats.bull_count}</div>
+                            <div style="color:#718096;font-size:12px;">買入/增持</div>
+                        </div>
+                        <div>
+                            <div style="color:#f59e0b;font-size:20px;font-weight:bold;">${stats.neutral_count}</div>
+                            <div style="color:#718096;font-size:12px;">中性</div>
+                        </div>
+                        <div>
+                            <div style="color:#ef4444;font-size:20px;font-weight:bold;">${stats.bear_count}</div>
+                            <div style="color:#718096;font-size:12px;">賣出/減持</div>
+                        </div>
+                    </div>`;
+                chartDiv.appendChild(summaryDiv);
+            }
             
             // 添加數據來源備註
             const remark = document.createElement('p');
@@ -1475,10 +1576,69 @@
             
             const canvas = document.createElement('canvas');
             canvas.id = 'brokerBarChart';
-            canvas.style.maxHeight = '400px';
+            canvas.style.maxHeight = '500px';
             
-            chartDiv.innerHTML = '<h3 style="color:#667eea;margin-bottom:15px;">🏦 券商覆蓋 Top 10</h3>';
+            chartDiv.innerHTML = `
+                <h3 style="color:#667eea;margin-bottom:15px;display:flex;align-items:center;gap:8px;">
+                    <svg style="width:24px;height:24px;fill:#667eea;" viewBox="0 0 24 24">
+                        <path d="M3,13H5V11H3V13M3,17H5V15H3V17M3,9H5V7H3V9M7,13H21V11H7V13M7,17H21V15H7V17M7,7V9H21V7H7Z"/>
+                    </svg>
+                    🏦 券商覆蓋 Top 10
+                </h3>`;
             chartDiv.appendChild(canvas);
+            
+            // 添加券商詳細信息表格
+            const tableDiv = document.createElement('div');
+            tableDiv.style.cssText = 'margin-top:15px;overflow-x:auto;';
+            let tableHTML = `
+                <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                    <thead>
+                        <tr style="background:#f7fafc;">
+                            <th style="padding:10px;text-align:left;border-bottom:2px solid #e2e8f0;font-weight:600;">券商名稱</th>
+                            <th style="padding:10px;text-align:center;border-bottom:2px solid #e2e8f0;font-weight:600;">報告數</th>
+                            <th style="padding:10px;text-align:center;border-bottom:2px solid #e2e8f0;font-weight:600;">平均目標價</th>
+                            <th style="padding:10px;text-align:center;border-bottom:2px solid #e2e8f0;font-weight:600;">評級共識</th>
+                            <th style="padding:10px;text-align:center;border-bottom:2px solid #e2e8f0;font-weight:600;">共識度</th>
+                            <th style="padding:10px;text-align:center;border-bottom:2px solid #e2e8f0;font-weight:600;">最新報告</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+            
+            brokerData.forEach((broker, index) => {
+                const bgColor = index % 2 === 0 ? 'white' : '#f7fafc';
+                tableHTML += `
+                    <tr style="background:${bgColor};">
+                        <td style="padding:10px;border-bottom:1px solid #e2e8f0;font-weight:500;">${broker.broker}</td>
+                        <td style="padding:10px;text-align:center;border-bottom:1px solid #e2e8f0;">
+                            <span style="background:#667eea;color:white;padding:4px 12px;border-radius:12px;font-size:12px;font-weight:bold;">${broker.count}</span>
+                        </td>
+                        <td style="padding:10px;text-align:center;border-bottom:1px solid #e2e8f0;font-weight:600;color:#10b981;">
+                            ${broker.average_target_price > 0 ? `HK$${broker.average_target_price.toFixed(2)}` : '-'}
+                        </td>
+                        <td style="padding:10px;text-align:center;border-bottom:1px solid #e2e8f0;">
+                            ${broker.consensus_rating !== '-' ? `<span style="color:#667eea;font-weight:500;">${broker.consensus_rating}</span>` : '-'}
+                        </td>
+                        <td style="padding:10px;text-align:center;border-bottom:1px solid #e2e8f0;">
+                            ${broker.consensus_ratio > 0 ? `
+                                <div style="display:flex;align-items:center;justify-content:center;gap:5px;">
+                                    <div style="flex:1;height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden;min-width:50px;">
+                                        <div style="width:${broker.consensus_ratio}%;height:100%;background:#667eea;border-radius:3px;"></div>
+                                    </div>
+                                    <span style="font-size:12px;font-weight:500;">${broker.consensus_ratio}%</span>
+                                </div>
+                            ` : '-'}
+                        </td>
+                        <td style="padding:10px;text-align:center;border-bottom:1px solid #e2e8f0;font-size:12px;color:#718096;">
+                            ${broker.latest_date || '-'}
+                        </td>
+                    </tr>`;
+            });
+            
+            tableHTML += `
+                    </tbody>
+                </table>`;
+            tableDiv.innerHTML = tableHTML;
+            chartDiv.appendChild(tableDiv);
             
             // 添加數據來源備註
             const remark = document.createElement('p');
@@ -1592,28 +1752,73 @@
             cardDiv.style.marginBottom = '20px';
             cardDiv.style.background = 'linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%)';
             
+            // 計算目標價區間
+            const priceRange = stats.max_price - stats.min_price;
+            const medianDiff = Math.abs(stats.median_price - stats.average_price);
+            
             cardDiv.innerHTML = `
-                <h3 style="color:#667eea;margin-bottom:15px;">💰 目標價統計</h3>
-                <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:15px;">
-                    <div style="background:rgba(255,255,255,0.5);padding:15px;border-radius:12px;text-align:center;">
-                        <div style="font-size:14px;color:#6c757d;margin-bottom:5px;">總報告數</div>
-                        <div style="font-size:28px;font-weight:bold;color:#667eea;">${stats.total_reports}</div>
+                <h3 style="color:#667eea;margin-bottom:15px;display:flex;align-items:center;gap:8px;">
+                    <svg style="width:24px;height:24px;fill:#667eea;" viewBox="0 0 24 24">
+                        <path d="M7,15H9V9H7M11,15H13V7H11M15,15H17V11H15M19,3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5A2,2 0 0,0 19,3Z"/>
+                    </svg>
+                    💰 目標價詳細統計
+                </h3>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:15px;">
+                    <!-- 第一行：基本統計 -->
+                    <div style="background:rgba(255,255,255,0.7);padding:15px;border-radius:12px;text-align:center;border-left:4px solid #667eea;">
+                        <div style="font-size:13px;color:#6c757d;margin-bottom:8px;">📊 總報告數</div>
+                        <div style="font-size:32px;font-weight:bold;color:#667eea;">${stats.total_reports}</div>
+                        <div style="font-size:12px;color:#718096;margin-top:5px;">份有效報告</div>
                     </div>
-                    <div style="background:rgba(255,255,255,0.5);padding:15px;border-radius:12px;text-align:center;">
-                        <div style="font-size:14px;color:#6c757d;margin-bottom:5px;">平均目標價</div>
-                        <div style="font-size:28px;font-weight:bold;color:#10b981;">HK$${stats.average_price.toFixed(2)}</div>
+                    <div style="background:rgba(255,255,255,0.7);padding:15px;border-radius:12px;text-align:center;border-left:4px solid #10b981;">
+                        <div style="font-size:13px;color:#6c757d;margin-bottom:8px;">📈 平均目標價</div>
+                        <div style="font-size:32px;font-weight:bold;color:#10b981;">HK$${stats.average_price.toFixed(2)}</div>
+                        <div style="font-size:12px;color:#718096;margin-top:5px;">中位數 HK$${stats.median_price.toFixed(2)}</div>
                     </div>
-                    <div style="background:rgba(255,255,255,0.5);padding:15px;border-radius:12px;text-align:center;">
-                        <div style="font-size:14px;color:#6c757d;margin-bottom:5px;">最低目標價</div>
-                        <div style="font-size:28px;font-weight:bold;color:#f59e0b;">HK$${stats.min_price.toFixed(2)}</div>
+                    <div style="background:rgba(255,255,255,0.7);padding:15px;border-radius:12px;text-align:center;border-left:4px solid #f59e0b;">
+                        <div style="font-size:13px;color:#6c757d;margin-bottom:8px;">📉 最低目標價</div>
+                        <div style="font-size:32px;font-weight:bold;color:#f59e0b;">HK$${stats.min_price.toFixed(2)}</div>
                     </div>
-                    <div style="background:rgba(255,255,255,0.5);padding:15px;border-radius:12px;text-align:center;">
-                        <div style="font-size:14px;color:#6c757d;margin-bottom:5px;">最高目標價</div>
-                        <div style="font-size:28px;font-weight:bold;color:#ef4444;">HK$${stats.max_price.toFixed(2)}</div>
+                    <div style="background:rgba(255,255,255,0.7);padding:15px;border-radius:12px;text-align:center;border-left:4px solid #ef4444;">
+                        <div style="font-size:13px;color:#6c757d;margin-bottom:8px;">🚀 最高目標價</div>
+                        <div style="font-size:32px;font-weight:bold;color:#ef4444;">HK$${stats.max_price.toFixed(2)}</div>
                     </div>
                 </div>
+                
+                <!-- 第二行：進階指標 -->
+                <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(250px, 1fr));gap:15px;margin-top:15px;">
+                    <div style="background:rgba(255,255,255,0.7);padding:15px;border-radius:12px;">
+                        <div style="font-size:13px;color:#6c757d;margin-bottom:10px;font-weight:600;">🎯 目標價區間</div>
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <div style="flex:1;height:10px;background:linear-gradient(90deg, #f59e0b 0%, #10b981 50%, #ef4444 100%);border-radius:5px;position:relative;">
+                                <div style="position:absolute;top:-5px;left:${stats.min_price > 0 ? ((stats.average_price - stats.min_price) / priceRange * 100) : 50}%;width:4px;height:20px;background:#667eea;border-radius:2px;"></div>
+                            </div>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:12px;color:#718096;">
+                            <span>HK$${stats.min_price.toFixed(2)}</span>
+                            <span style="font-weight:600;color:#667eea;">均值 HK$${stats.average_price.toFixed(2)}</span>
+                            <span>HK$${stats.max_price.toFixed(2)}</span>
+                        </div>
+                        <div style="margin-top:8px;font-size:12px;color:#718096;text-align:center;">
+                            區間跨度：HK$${priceRange.toFixed(2)} | 均值與中位數偏差：HK$${medianDiff.toFixed(2)}
+                        </div>
+                    </div>
+                    
+                    <div style="background:rgba(255,255,255,0.7);padding:15px;border-radius:12px;">
+                        <div style="font-size:13px;color:#6c757d;margin-bottom:10px;font-weight:600;">📊 平均上行空間</div>
+                        <div style="text-align:center;">
+                            <div style="font-size:36px;font-weight:bold;color:${stats.average_upside > 0 ? '#10b981' : '#ef4444'};">
+                                ${stats.average_upside > 0 ? '+' : ''}${stats.average_upside.toFixed(2)}%
+                            </div>
+                            <div style="font-size:12px;color:#718096;margin-top:5px;">
+                                ${stats.average_upside > 20 ? '極具吸引力' : stats.average_upside > 10 ? '具備吸引力' : stats.average_upside > 0 ? '溫和上行' : '下行風險'}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
                 <p style="margin-top:15px;font-size:12px;color:#718096;text-align:center;font-style:italic;">
-                    💡 數據來源：broker_analysis.db 數據庫實時查詢 | 統計所有有效目標價數據
+                    💡 數據來源：Supabase 雲端數據庫實時查詢 | 統計所有有效目標價數據 | 最後更新：${new Date().toLocaleString('zh-HK')}
                 </p>
             `;
             

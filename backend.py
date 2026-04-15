@@ -1679,7 +1679,7 @@ def analyze_existing_pdf():
 
 @app.route('/broker_3quilm/api/chart-data', methods=['GET'])
 def get_chart_data():
-    """獲取圖表數據（評級分佈、目標價統計等）"""
+    """獲取圖表數據（評級分佈、目標價統計等）- 深化數據洞察版本"""
     try:
         # 從 Supabase 獲取所有分析結果
         all_results = supabase_request('GET', 'analysis_results')
@@ -1687,13 +1687,28 @@ def get_chart_data():
         if not all_results:
             return jsonify({
                 'rating_distribution': [],
-                'price_statistics': {'total_reports': 0, 'average_price': 0, 'min_price': 0, 'max_price': 0},
+                'price_statistics': {
+                    'total_reports': 0,
+                    'average_price': 0,
+                    'min_price': 0,
+                    'max_price': 0,
+                    'median_price': 0,
+                    'average_upside': 0,
+                    'bull_count': 0,
+                    'bear_count': 0,
+                    'neutral_count': 0
+                },
                 'broker_coverage': [],
-                'trend_data': []
+                'trend_data': [],
+                'market_sentiment': ''
             })
         
-        # 1. 評級分佈
+        # ========== 1. 評級分佈與多空比例 ==========
         rating_count = {}
+        bull_ratings = ['買入', '增持', '強烈買入', 'Outperform', 'Overweight', 'Buy']
+        bear_ratings = ['賣出', '減持', 'Underperform', 'Underweight', 'Sell']
+        neutral_ratings = ['持有', '中性', 'Neutral', 'Hold']
+        
         for r in all_results:
             rating = r.get('rating')
             if rating and rating != '' and rating != '-':
@@ -1701,25 +1716,102 @@ def get_chart_data():
         
         rating_data = sorted(rating_count.items(), key=lambda x: x[1], reverse=True)
         
-        # 2. 目標價統計
+        # 計算多空比例
+        bull_count = sum(rating_count.get(r, 0) for r in bull_ratings)
+        bear_count = sum(rating_count.get(r, 0) for r in bear_ratings)
+        neutral_count = sum(rating_count.get(r, 0) for r in neutral_ratings)
+        total_rated = bull_count + bear_count + neutral_count
+        
+        # ========== 2. 目標價統計（含中位數與上行空間） ==========
         target_prices = [r.get('target_price') for r in all_results if r.get('target_price') and r.get('target_price') > 0]
+        upside_potentials = [r.get('upside_potential') for r in all_results if r.get('upside_potential') is not None]
+        
+        # 計算中位數
+        def calculate_median(data):
+            if not data:
+                return 0
+            sorted_data = sorted(data)
+            n = len(sorted_data)
+            if n % 2 == 0:
+                return (sorted_data[n//2 - 1] + sorted_data[n//2]) / 2
+            else:
+                return sorted_data[n//2]
+        
         price_stats = {
             'total_reports': len(target_prices),
             'average_price': round(sum(target_prices) / len(target_prices), 2) if target_prices else 0,
+            'median_price': round(calculate_median(target_prices), 2) if target_prices else 0,
             'min_price': round(min(target_prices), 2) if target_prices else 0,
-            'max_price': round(max(target_prices), 2) if target_prices else 0
+            'max_price': round(max(target_prices), 2) if target_prices else 0,
+            'average_upside': round(sum(upside_potentials) / len(upside_potentials), 2) if upside_potentials else 0,
+            'bull_count': bull_count,
+            'bear_count': bear_count,
+            'neutral_count': neutral_count,
+            'total_rated': total_rated
         }
         
-        # 3. 券商覆蓋數量
-        broker_count = {}
+        # ========== 3. 券商覆蓋 Top 10（含平均目標價、共識度、最新日期） ==========
+        broker_stats = {}
         for r in all_results:
             broker = r.get('broker_name')
-            if broker and broker != '':
-                broker_count[broker] = broker_count.get(broker, 0) + 1
+            if broker and broker != '' and broker != '-':
+                if broker not in broker_stats:
+                    broker_stats[broker] = {
+                        'broker': broker,
+                        'count': 0,
+                        'target_prices': [],
+                        'ratings': [],
+                        'latest_date': ''
+                    }
+                
+                broker_stats[broker]['count'] += 1
+                
+                target_price = r.get('target_price')
+                if target_price and target_price > 0:
+                    broker_stats[broker]['target_prices'].append(target_price)
+                
+                rating = r.get('rating')
+                if rating and rating != '' and rating != '-':
+                    broker_stats[broker]['ratings'].append(rating)
+                
+                created_at = r.get('created_at')
+                if created_at:
+                    try:
+                        date_str = created_at.split('T')[0] if 'T' in created_at else created_at[:10]
+                        if date_str > broker_stats[broker]['latest_date']:
+                            broker_stats[broker]['latest_date'] = date_str
+                    except:
+                        pass
         
-        broker_data = sorted(broker_count.items(), key=lambda x: x[1], reverse=True)[:10]
+        # 計算每個券商的平均目標價和共識度
+        broker_data = []
+        for broker, stats in broker_stats.items():
+            avg_target = round(sum(stats['target_prices']) / len(stats['target_prices']), 2) if stats['target_prices'] else 0
+            
+            # 計算共識度（最常見的評級）
+            if stats['ratings']:
+                from collections import Counter
+                rating_counter = Counter(stats['ratings'])
+                consensus_rating = rating_counter.most_common(1)[0][0]
+                consensus_count = rating_counter.most_common(1)[0][1]
+                consensus_ratio = round((consensus_count / len(stats['ratings'])) * 100, 1)
+            else:
+                consensus_rating = '-'
+                consensus_ratio = 0
+            
+            broker_data.append({
+                'broker': broker,
+                'count': stats['count'],
+                'average_target_price': avg_target,
+                'consensus_rating': consensus_rating,
+                'consensus_ratio': consensus_ratio,
+                'latest_date': stats['latest_date']
+            })
         
-        # 4. 時間趨勢（最近 30 天）
+        # 按報告數量排序，取 Top 10
+        broker_data = sorted(broker_data, key=lambda x: x['count'], reverse=True)[:10]
+        
+        # ========== 4. 時間趨勢（最近 30 天） ==========
         from datetime import datetime, timedelta
         thirty_days_ago = datetime.utcnow() - timedelta(days=30)
         trend_count = {}
@@ -1736,20 +1828,49 @@ def get_chart_data():
         
         trend_data = sorted(trend_count.items())
         
+        # ========== 5. 生成 AI 市場情緒摘要 ==========
+        sentiment_parts = []
+        
+        if total_rated > 0:
+            # 計算多頭比例
+            bull_ratio = round((bull_count / total_rated) * 100, 1)
+            
+            if bull_ratio >= 80:
+                sentiment_level = '極度樂觀'
+            elif bull_ratio >= 60:
+                sentiment_level = '樂觀'
+            elif bull_ratio >= 40:
+                sentiment_level = '中性'
+            elif bull_ratio >= 20:
+                sentiment_level = '審慎'
+            else:
+                sentiment_level = '悲觀'
+            
+            sentiment_parts.append(f'目前 {bull_ratio}% 券商給予買入/增持評級')
+        
+        if price_stats['average_price'] > 0:
+            sentiment_parts.append(f'平均目標價 HK${price_stats["average_price"]:.2f}')
+        
+        if price_stats['average_upside'] > 0:
+            sentiment_parts.append(f'較現價有 {price_stats["average_upside"]:.1f}% 上行空間')
+        
+        if price_stats['min_price'] > 0 and price_stats['max_price'] > 0:
+            sentiment_parts.append(f'目標價區間 HK${price_stats["min_price"]:.2f} - HK${price_stats["max_price"]:.2f}')
+        
+        sentiment_summary = f'市場情緒{sentiment_level}。' + '，'.join(sentiment_parts) + '。' if sentiment_parts else '數據不足以生成市場情緒摘要。'
+        
         return jsonify({
             'rating_distribution': [
                 {'rating': rating, 'count': count} 
                 for rating, count in rating_data
             ],
             'price_statistics': price_stats,
-            'broker_coverage': [
-                {'broker': broker, 'count': count} 
-                for broker, count in broker_data
-            ],
+            'broker_coverage': broker_data,
             'trend_data': [
                 {'date': date, 'count': count} 
                 for date, count in trend_data
-            ]
+            ],
+            'market_sentiment': sentiment_summary
         })
         
     except Exception as e:
