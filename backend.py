@@ -1534,7 +1534,7 @@ def get_chart_data():
 
 @app.route('/broker_3quilm/api/export-analysis', methods=['GET'])
 def export_analysis_report():
-    """導出詳細分析報告為 Excel 文件"""
+    """導出詳細分析報告為 Excel 文件 - 包含完整 15 個字段及智能分表"""
     try:
         from openpyxl import Workbook
         from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -1542,22 +1542,29 @@ def export_analysis_report():
         from datetime import datetime
         import io
         
-        conn = sqlite3.connect(DATABASE)
-        cursor = conn.cursor()
+        # 從 Supabase 獲取所有數據
+        all_results = supabase_request('GET', 'analysis_results')
+        
+        if not all_results:
+            return jsonify({'error': '沒有可導出的數據'}), 404
+        
+        logger.info(f"Exporting {len(all_results)} records to Excel")
         
         # 創建工作簿
         wb = Workbook()
         wb.remove(wb.active)  # 移除默認 sheet
         
-        # ========== Sheet 1: 摘要統計 ==========
-        ws_summary = wb.create_sheet(title='摘要統計')
-        
-        # 標題樣式
+        # ========== 樣式定義 ==========
         title_font = Font(name='Microsoft JhengHei', size=16, bold=True, color='FFFFFF')
         title_fill = PatternFill(start_color='667eea', end_color='764ba2', fill_type='solid')
         header_font = Font(name='Microsoft JhengHei', size=11, bold=True, color='FFFFFF')
         header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
         normal_font = Font(name='Microsoft JhengHei', size=10)
+        warning_font = Font(name='Microsoft JhengHei', size=9, color='FF0000', italic=True)
+        warning_fill = PatternFill(start_color='FFF2CC', end_color='FFF2CC', fill_type='solid')
+        
+        # ========== Sheet 1: 摘要統計 ==========
+        ws_summary = wb.create_sheet(title='摘要統計')
         
         # 標題
         ws_summary.merge_cells('A1:B1')
@@ -1574,34 +1581,30 @@ def export_analysis_report():
         
         # 重要備註
         ws_summary['A3'] = '⚠️ 重要說明：本報告包含所有原始數據，未過濾異常值'
-        ws_summary['A3'].font = Font(name='Microsoft JhengHei', size=9, color='FF0000', italic=True)
-        ws_summary['A3'].fill = PatternFill(start_color='FFF2CC', end_color='FFF2CC', fill_type='solid')
+        ws_summary['A3'].font = warning_font
+        ws_summary['A3'].fill = warning_fill
         ws_summary.merge_cells('A3:B3')
         ws_summary.row_dimensions[3].height = 25
         
-        # 基本統計
-        cursor.execute("""
-            SELECT COUNT(*) as total, 
-                   AVG(target_price) as avg_price,
-                   MIN(target_price) as min_price,
-                   MAX(target_price) as max_price
-            FROM analysis_results 
-            WHERE target_price IS NOT NULL AND target_price > 0
-        """)
-        stats = cursor.fetchone()
+        # 計算基本統計
+        target_prices = [r.get('target_price') for r in all_results if r.get('target_price') and r.get('target_price') > 0]
+        total_reports = len(target_prices)
+        avg_price = sum(target_prices) / len(target_prices) if target_prices else 0
+        min_price = min(target_prices) if target_prices else 0
+        max_price = max(target_prices) if target_prices else 0
         
         summary_data = [
-            ['指標', '數值'],
-            ['總報告數', f'{stats[0]} 份'],
-            ['平均目標價', f'HK${stats[1]:.2f}' if stats[1] else 'N/A'],
-            ['最低目標價', f'HK${stats[2]:.2f}' if stats[2] else 'N/A'],
-            ['最高目標價', f'HK${stats[3]:.2f}' if stats[3] else 'N/A'],
+            ['指標', '數値'],
+            ['總報告數', f'{total_reports} 份'],
+            ['平均目標價', f'HK${avg_price:.2f}' if avg_price else 'N/A'],
+            ['最低目標價', f'HK${min_price:.2f}' if min_price else 'N/A'],
+            ['最高目標價', f'HK${max_price:.2f}' if max_price else 'N/A'],
         ]
         
-        for row_idx, row_data in enumerate(summary_data, start=5):  # 從第 5 行開始（因為第 3 行係備註）
+        for row_idx, row_data in enumerate(summary_data, start=5):
             for col_idx, value in enumerate(row_data, start=1):
                 cell = ws_summary.cell(row=row_idx, column=col_idx, value=value)
-                if row_idx == 5:  # 標題行
+                if row_idx == 5:
                     cell.font = header_font
                     cell.fill = header_fill
                     cell.alignment = Alignment(horizontal='center', vertical='center')
@@ -1615,20 +1618,18 @@ def export_analysis_report():
         # ========== Sheet 2: 評級分佈 ==========
         ws_rating = wb.create_sheet(title='評級分佈')
         
-        cursor.execute("""
-            SELECT rating, COUNT(*) as count 
-            FROM analysis_results 
-            WHERE rating IS NOT NULL AND rating != '' AND rating != '-'
-            GROUP BY rating 
-            ORDER BY count DESC
-        """)
-        rating_data = cursor.fetchall()
+        rating_count = {}
+        for r in all_results:
+            rating = r.get('rating')
+            if rating and rating != '' and rating != '-':
+                rating_count[rating] = rating_count.get(rating, 0) + 1
+        
+        rating_data = sorted(rating_count.items(), key=lambda x: x[1], reverse=True)
+        total_ratings = sum(count for _, count in rating_data)
         
         ws_rating['A1'] = '評級'
         ws_rating['B1'] = '數量'
         ws_rating['C1'] = '佔比'
-        
-        total_ratings = sum(row[1] for row in rating_data)
         
         for row_idx, (rating, count) in enumerate(rating_data, start=2):
             percentage = (count / total_ratings * 100) if total_ratings > 0 else 0
@@ -1636,28 +1637,23 @@ def export_analysis_report():
             ws_rating.cell(row=row_idx, column=2, value=count).font = normal_font
             ws_rating.cell(row=row_idx, column=3, value=f'{percentage:.1f}%').font = normal_font
         
-        # 設置標題樣式
         for col in ['A', 'B', 'C']:
             cell = ws_rating[f'{col}1']
             cell.font = header_font
             cell.fill = header_fill
             cell.alignment = Alignment(horizontal='center', vertical='center')
-        
-        for col in ['A', 'B', 'C']:
             ws_rating.column_dimensions[col].width = 15
         
-        # ========== Sheet 3: 券商覆蓋 Top 20 ==========
+        # ========== Sheet 3: 券商覆蓋排名 ==========
         ws_broker = wb.create_sheet(title='券商覆蓋排名')
         
-        cursor.execute("""
-            SELECT broker_name, COUNT(*) as count 
-            FROM analysis_results 
-            WHERE broker_name IS NOT NULL AND broker_name != ''
-            GROUP BY broker_name 
-            ORDER BY count DESC
-            LIMIT 20
-        """)
-        broker_data = cursor.fetchall()
+        broker_count = {}
+        for r in all_results:
+            broker = r.get('broker_name')
+            if broker and broker != '':
+                broker_count[broker] = broker_count.get(broker, 0) + 1
+        
+        broker_data = sorted(broker_count.items(), key=lambda x: x[1], reverse=True)[:20]
         
         ws_broker['A1'] = '排名'
         ws_broker['B1'] = '券商名稱'
@@ -1678,51 +1674,107 @@ def export_analysis_report():
         ws_broker.column_dimensions['B'].width = 25
         ws_broker.column_dimensions['C'].width = 15
         
-        # ========== Sheet 4: 目標價詳細數據 ==========
-        ws_price = wb.create_sheet(title='目標價詳細數據')
+        # ========== Sheet 4: 完整 15 字段詳細數據 ==========
+        ws_full = wb.create_sheet(title='完整數據 (15字段)')
         
-        cursor.execute("""
-            SELECT broker_name, stock_code, company_name, target_price, current_price, 
-                   upside_potential, rating, created_at
-            FROM analysis_results 
-            WHERE target_price IS NOT NULL AND target_price > 0
-            ORDER BY target_price DESC
-        """)
-        price_data = cursor.fetchall()
+        # 定義 15 個字段標題
+        full_headers = [
+            'Date of Release',           # 1. 發布日期
+            'Name of Broker',            # 2. 券商名稱
+            'Name of Stock',             # 3. 股票名稱
+            'Related Industry',          # 4. 相關行業
+            'Related Sub-industry',      # 5. 子行業
+            'Related Indexes',           # 6. 相關指數
+            'Investment Grade',          # 7. 投資評級
+            'Target Price (Adjusted)',   # 8. 目標價
+            'Investment Horizon',        # 9. 投資期限
+            'Latest Close Before Release', # 10. 發布前收盤價
+            'Date of Target First Hit',  # 11. 首次達標日期
+            'Last Transacted Price',     # 12. 最新成交價
+            "Today's Date",              # 13. 今日日期
+            'Date of Grade Revised',     # 14. 評級修訂日期
+            'Date of Target Revised'     # 15. 目標價修訂日期
+        ]
         
-        headers = ['券商', '股票代碼', '公司名稱', '目標價', '現價', '潛在漲幅', '評級', '分析日期']
-        for col_idx, header in enumerate(headers, start=1):
-            cell = ws_price.cell(row=1, column=col_idx, value=header)
+        # 添加額外字段（便於分析）
+        extra_headers = [
+            'PDF Filename',
+            'Current Price',
+            'Upside Potential (%)',
+            'AI Summary',
+            'Analysis Date'
+        ]
+        
+        all_headers = full_headers + extra_headers
+        
+        # 寫入標題行
+        for col_idx, header in enumerate(all_headers, start=1):
+            cell = ws_full.cell(row=1, column=col_idx, value=header)
             cell.font = header_font
             cell.fill = header_fill
-            cell.alignment = Alignment(horizontal='center', vertical='center')
+            cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
         
-        for row_idx, row_data in enumerate(price_data, start=2):
-            for col_idx, value in enumerate(row_data, start=1):
-                cell = ws_price.cell(row=row_idx, column=col_idx, value=value)
+        # 寫入數據行
+        for row_idx, record in enumerate(all_results, start=2):
+            # 映射 15 個核心字段
+            row_data = [
+                record.get('release_date', '-'),                          # 1
+                record.get('broker_name', '-'),                           # 2
+                record.get('stock_name', '-') or record.get('company_name', '-'),  # 3
+                record.get('industry', '-'),                              # 4
+                record.get('sub_industry', '-'),                          # 5
+                record.get('indexes', '-'),                               # 6
+                record.get('rating', '-'),                                # 7
+                record.get('target_price', None),                         # 8
+                record.get('investment_horizon', '12 months'),            # 9
+                record.get('current_price', None),                        # 10
+                record.get('target_hit_date', '-'),                       # 11
+                record.get('current_price', None),                        # 12 (使用 current_price 作為最新價)
+                datetime.now().strftime('%Y-%m-%d'),                      # 13
+                record.get('rating_revised_date', '-'),                   # 14
+                record.get('target_revised_date', '-')                    # 15
+            ]
+            
+            # 添加額外字段
+            extra_data = [
+                record.get('pdf_filename', '-'),
+                record.get('current_price', None),
+                record.get('upside_potential', None),
+                record.get('ai_summary', '')[:200] if record.get('ai_summary') else '',  # 限制長度
+                record.get('created_at', '-')
+            ]
+            
+            full_row = row_data + extra_data
+            
+            for col_idx, value in enumerate(full_row, start=1):
+                cell = ws_full.cell(row=row_idx, column=col_idx, value=value)
                 cell.font = normal_font
                 
-                # 標註異常價格（低於 HK$100）
-                if col_idx == 4 and value and value < 100:
+                # 標註異常價格
+                if col_idx == 8 and value and isinstance(value, (int, float)) and value < 100:
                     cell.fill = PatternFill(start_color='FFC7CE', end_color='FFC7CE', fill_type='solid')
                     cell.font = Font(name='Microsoft JhengHei', size=10, color='9C0006', bold=True)
         
         # 設置列寬
-        column_widths = [20, 12, 20, 12, 12, 12, 10, 20]
-        for col_idx, width in enumerate(column_widths, start=1):
-            ws_price.column_dimensions[get_column_letter(col_idx)].width = width
+        full_widths = [15, 20, 20, 20, 20, 25, 15, 12, 15, 12, 15, 12, 15, 15, 15, 25, 12, 12, 40, 20]
+        for col_idx, width in enumerate(full_widths, start=1):
+            ws_full.column_dimensions[get_column_letter(col_idx)].width = width
         
         # ========== Sheet 5: 時間趨勢 ==========
         ws_trend = wb.create_sheet(title='時間趨勢')
         
-        cursor.execute("""
-            SELECT DATE(created_at) as date, COUNT(*) as count
-            FROM analysis_results
-            WHERE created_at >= DATE('now', '-30 days')
-            GROUP BY DATE(created_at)
-            ORDER BY date
-        """)
-        trend_data = cursor.fetchall()
+        trend_count = {}
+        for r in all_results:
+            created_at = r.get('created_at')
+            if created_at:
+                try:
+                    date_obj = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                    date_str = date_obj.strftime('%Y-%m-%d')
+                    trend_count[date_str] = trend_count.get(date_str, 0) + 1
+                except:
+                    pass
+        
+        trend_data = sorted(trend_count.items())
         
         ws_trend['A1'] = '日期'
         ws_trend['B1'] = '分析數量'
@@ -1739,8 +1791,6 @@ def export_analysis_report():
         
         ws_trend.column_dimensions['A'].width = 15
         ws_trend.column_dimensions['B'].width = 15
-        
-        conn.close()
         
         # 保存到內存
         output = io.BytesIO()
@@ -1760,6 +1810,7 @@ def export_analysis_report():
         
     except Exception as e:
         import traceback
+        logger.error(f"Export failed: {e}")
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
