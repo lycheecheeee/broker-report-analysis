@@ -1890,17 +1890,46 @@ def health_check():
     """健康檢查端點"""
     try:
         ensure_db_initialized()
-        # 檢查數據庫連接
-        conn = sqlite3.connect(DATABASE)
-        cursor = conn.cursor()
-        cursor.execute('SELECT COUNT(*) FROM analysis_results')
-        record_count = cursor.fetchone()[0]
-        conn.close()
+        
+        # 根據 DB_MODE 選擇不同的檢查方式
+        if DB_MODE == 'supabase':
+            # Supabase 模式：嘗試查詢一條記錄
+            try:
+                url = f"{SUPABASE_URL}/rest/v1/analysis_results?select=id&limit=1"
+                headers = {
+                    'apikey': SUPABASE_KEY,
+                    'Authorization': f'Bearer {SUPABASE_KEY}',
+                    'Content-Type': 'application/json'
+                }
+                response = requests.get(url, headers=headers, timeout=5)
+                if response.status_code == 200:
+                    data = response.json()
+                    record_count = len(data) if isinstance(data, list) else 0
+                    db_status = 'connected'
+                else:
+                    record_count = 0
+                    db_status = 'error'
+            except Exception as e:
+                record_count = 0
+                db_status = f'error: {str(e)}'
+        elif DB_MODE == 'sqlite':
+            # SQLite 模式：直接查詢本地數據庫
+            conn = sqlite3.connect(DATABASE)
+            cursor = conn.cursor()
+            cursor.execute('SELECT COUNT(*) FROM analysis_results')
+            record_count = cursor.fetchone()[0]
+            conn.close()
+            db_status = 'connected'
+        else:
+            # Memory 模式
+            record_count = 0
+            db_status = 'memory_mode'
         
         return jsonify({
             'status': 'healthy',
             'timestamp': datetime.now().isoformat(),
-            'database': 'connected',
+            'database': db_status,
+            'db_mode': DB_MODE,
             'total_records': record_count,
             'version': '1.0.0'
         }), 200
