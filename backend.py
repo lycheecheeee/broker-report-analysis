@@ -828,15 +828,7 @@ def analyze_pdf():
         # 公開工具，使用固定用戶ID
         user_id = 1
         
-        # 確保默認用戶存在
-        conn = sqlite3.connect(DATABASE)
-        c = conn.cursor()
-        c.execute("SELECT id FROM users WHERE id = 1")
-        if not c.fetchone():
-            password_hash = hashlib.sha256('public'.encode()).hexdigest()
-            c.execute("INSERT INTO users (id, username, password_hash) VALUES (1, 'public_user', ?)", (password_hash,))
-            conn.commit()
-        conn.close()
+        # Supabase 模式：不需要創建默認用戶
         
         if 'file' not in request.files:
             logger.error("No file uploaded")
@@ -903,21 +895,12 @@ def analyze_pdf():
         logger.info(f"Extracted - Broker: {broker_name}, Rating: {rating}, Target: {target_price}")
         
         # ========== 去重檢查 ==========
-        conn_check = sqlite3.connect(DATABASE)
-        cursor_check = conn_check.cursor()
+        existing_results = supabase_request('GET', 'analysis_results', 
+                                           query_params=f'pdf_filename=eq.{filename}')
         
-        # 檢查今日是否已經分析過呢個文件
-        cursor_check.execute("""
-            SELECT id, created_at FROM analysis_results 
-            WHERE pdf_filename = ? AND DATE(created_at) = DATE('now')
-            ORDER BY created_at DESC
-            LIMIT 1
-        """, (filename,))
-        existing_record = cursor_check.fetchone()
-        conn_check.close()
-        
-        if existing_record:
-            logger.info(f"Duplicate file {filename} (ID: {existing_record[0]}, Time: {existing_record[1]})")
+        if existing_results and len(existing_results) > 0:
+            existing_record = existing_results[0]
+            logger.info(f"Duplicate file {filename} (ID: {existing_record.get('id')}, Time: {existing_record.get('created_at')})")
             logger.info("Skipping duplicate analysis, returning existing data")
             
             # 返回現有記錄
@@ -925,8 +908,8 @@ def analyze_pdf():
                 'success': True,
                 'message': f'文件 {filename} 今日已分析過，使用現有數據',
                 'duplicate': True,
-                'existing_id': existing_record[0],
-                'analysis_time': existing_record[1]
+                'existing_id': existing_record.get('id'),
+                'analysis_time': existing_record.get('created_at')
             })
         
         logger.info("New file, starting analysis...")
@@ -1082,21 +1065,19 @@ def get_prompts():
     """獲取Prompt模板 - 公開訪問"""
     user_id = 1  # 公開工具，固定用戶ID
     
-    conn = sqlite3.connect(DATABASE)
-    c = conn.cursor()
-    c.execute('''SELECT id, template_name, prompt_text, is_default
-                 FROM prompt_templates
-                 WHERE user_id = ? OR is_default = 1
-                 ORDER BY is_default DESC, created_at DESC''', (user_id,))
-    prompts = c.fetchall()
-    conn.close()
+    # 從 Supabase 獲取數據
+    results = supabase_request('GET', 'prompt_templates', 
+                              query_params=f'or=(user_id.eq.{user_id},is_default.eq.1)&order=is_default.desc,created_at.desc')
+    
+    if not results:
+        return jsonify([])
     
     return jsonify([{
-        'id': p[0],
-        'template_name': p[1],
-        'prompt_text': p[2],
-        'is_default': p[3]
-    } for p in prompts])
+        'id': r.get('id'),
+        'template_name': r.get('template_name'),
+        'prompt_text': r.get('prompt_text'),
+        'is_default': r.get('is_default')
+    } for r in results])
 
 @app.route('/broker_3quilm/api/prompts', methods=['POST'])
 def save_prompt():
@@ -1107,14 +1088,15 @@ def save_prompt():
     template_name = data.get('template_name')
     prompt_text = data.get('prompt_text')
     
-    conn = sqlite3.connect(DATABASE)
-    c = conn.cursor()
-    c.execute('''INSERT INTO prompt_templates (user_id, template_name, prompt_text)
-                 VALUES (?, ?, ?)''',
-             (user_id, template_name, prompt_text))
-    conn.commit()
-    prompt_id = c.lastrowid
-    conn.close()
+    prompt_data = {
+        'user_id': user_id,
+        'template_name': template_name,
+        'prompt_text': prompt_text,
+        'created_at': datetime.utcnow().isoformat()
+    }
+    
+    result = supabase_request('POST', 'prompt_templates', data=prompt_data)
+    prompt_id = result[0]['id'] if result and len(result) > 0 else None
     
     return jsonify({'id': prompt_id, 'message': 'Prompt已保存'})
 
@@ -1137,19 +1119,25 @@ def root():
 def get_charts():
     """獲取圖表數據 - 公開訪問"""
     try:
-        conn = sqlite3.connect(DATABASE)
-        c = conn.cursor()
-        c.execute('SELECT broker_name, rating, target_price, current_price, upside_potential FROM analysis_results WHERE user_id=1 ORDER BY created_at DESC LIMIT 10')
-        results = c.fetchall()
-        conn.close()
+        # 從 Supabase 獲取數據
+        results = supabase_request('GET', 'analysis_results', 
+                                  query_params='user_id=eq.1&order=created_at.desc&limit=10')
         
-        brokers = [r[0] or 'Unknown' for r in results]
-        ratings = [r[1] or 'N/A' for r in results]
-        upsides = [r[4] if r[4] else 0 for r in results]
+        if not results:
+            return jsonify({
+                'brokers': [],
+                'ratings': [],
+                'upsides': [],
+                'distribution': {'Buy': 0, 'Hold': 0, 'Sell': 0}
+            }), 200
         
-        buy_count = ratings.count('Buy')
-        hold_count = ratings.count('Hold')
-        sell_count = ratings.count('Sell')
+        brokers = [r.get('broker_name') or 'Unknown' for r in results]
+        ratings = [r.get('rating') or 'N/A' for r in results]
+        upsides = [r.get('upside_potential') if r.get('upside_potential') else 0 for r in results]
+        
+        buy_count = ratings.count('買入') + ratings.count('Buy')
+        hold_count = ratings.count('持有') + ratings.count('Hold') + ratings.count('中性')
+        sell_count = ratings.count('賣出') + ratings.count('Sell')
         
         return jsonify({
             'brokers': brokers,
@@ -1158,6 +1146,9 @@ def get_charts():
             'distribution': {'Buy': buy_count, 'Hold': hold_count, 'Sell': sell_count}
         }), 200
     except Exception as e:
+        logger.error(f"Charts endpoint error: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 @app.route('/broker_3quilm/api/v1/scan/folder', methods=['POST'])
