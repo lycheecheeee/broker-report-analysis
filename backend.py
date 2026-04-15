@@ -101,6 +101,7 @@ _db_initialized = False
 def supabase_request(method, table, data=None, query_params=None):
     """Supabase REST API 請求輔助函數"""
     if DB_MODE != 'supabase' or not SUPABASE_KEY:
+        logger.error(f"Supabase not configured: DB_MODE={DB_MODE}, KEY_SET={bool(SUPABASE_KEY)}")
         return None
     
     url = f"{SUPABASE_URL}/rest/v1/{table}"
@@ -112,32 +113,39 @@ def supabase_request(method, table, data=None, query_params=None):
     }
     
     try:
+        logger.debug(f"Supabase {method} request to {url}")
         if method == 'GET':
             if query_params:
                 url += f"?{query_params}"
-            response = requests.get(url, headers=headers)
+            response = requests.get(url, headers=headers, timeout=10)
         elif method == 'POST':
-            response = requests.post(url, headers=headers, json=data)
+            logger.debug(f"POST data keys: {list(data.keys()) if data else 'None'}")
+            response = requests.post(url, headers=headers, json=data, timeout=10)
         elif method == 'PATCH':
             if query_params:
                 url += f"?{query_params}"
-            response = requests.patch(url, headers=headers, json=data)
+            response = requests.patch(url, headers=headers, json=data, timeout=10)
         elif method == 'DELETE':
             if query_params:
                 url += f"?{query_params}"
-            response = requests.delete(url, headers=headers)
+            response = requests.delete(url, headers=headers, timeout=10)
         else:
             return None
         
+        logger.debug(f"Supabase response status: {response.status_code}")
         if response.status_code in [200, 201, 204]:
             if response.status_code == 204:
                 return []
-            return response.json()
+            result = response.json()
+            logger.debug(f"Supabase response data: {len(result) if isinstance(result, list) else 'object'} items")
+            return result
         else:
-            logger.error(f"Supabase error {response.status_code}: {response.text}")
+            logger.error(f"Supabase error {response.status_code}: {response.text[:500]}")
             return None
     except Exception as e:
-        logger.error(f"Supabase request failed: {e}")
+        logger.error(f"Supabase request failed: {type(e).__name__}: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
         return None
 
 def init_db():
