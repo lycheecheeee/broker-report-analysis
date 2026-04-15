@@ -1617,7 +1617,7 @@ def analyze_existing_pdf():
         final_indexes = extracted_fields.get('indexes', '-') if extracted_fields else '-'
         final_investment_horizon = extracted_fields.get('investment_horizon', '-') if extracted_fields else '-'
         
-        # 保存到 Supabase
+        # 保存到 Supabase（先檢查是否已存在，避免重複記錄）
         supabase_data = {
             'user_id': user_id,
             'pdf_filename': filename,
@@ -1628,18 +1628,63 @@ def analyze_existing_pdf():
             'upside_potential': upside,
             'ai_summary': ai_summary,
             'prompt_used': '',
+            'release_date': final_release_date,
+            'stock_name': final_stock_name,
+            'industry': final_industry,
+            'sub_industry': final_sub_industry,
+            'indexes': final_indexes,
+            'investment_horizon': final_investment_horizon,
             'created_at': datetime.utcnow().isoformat()
         }
         
         logger.info(f"Saving to Supabase: {filename}")
-        result = supabase_request('POST', 'analysis_results', data=supabase_data)
         
-        if result and len(result) > 0:
-            analysis_id = result[0]['id']
-            logger.info(f"Successfully saved to Supabase, ID: {analysis_id}")
-        else:
+        # Step 1: 檢查是否已存在相同 pdf_filename 的記錄
+        check_url = f"{SUPABASE_URL}/rest/v1/analysis_results?pdf_filename=eq.{filename}&select=id"
+        check_headers = {
+            'apikey': SUPABASE_KEY,
+            'Authorization': f'Bearer {SUPABASE_KEY}',
+            'Content-Type': 'application/json'
+        }
+        
+        try:
+            check_response = requests.get(check_url, headers=check_headers, timeout=10)
+            existing_records = check_response.json() if check_response.status_code == 200 else []
+            
+            if existing_records and len(existing_records) > 0:
+                # Step 2a: 如果已存在，執行 UPDATE 操作
+                existing_id = existing_records[0]['id']
+                logger.info(f"Record exists (ID: {existing_id}), updating...")
+                
+                update_url = f"{SUPABASE_URL}/rest/v1/analysis_results?id=eq.{existing_id}"
+                update_response = requests.patch(
+                    update_url,
+                    headers=check_headers,
+                    json=supabase_data,
+                    timeout=10
+                )
+                
+                if update_response.status_code in [200, 204]:
+                    analysis_id = existing_id
+                    logger.info(f"Successfully updated record ID: {analysis_id}")
+                else:
+                    analysis_id = None
+                    logger.warning(f"Failed to update record: HTTP {update_response.status_code}")
+            else:
+                # Step 2b: 如果不存在，執行 INSERT 操作
+                logger.info("No existing record found, creating new record...")
+                result = supabase_request('POST', 'analysis_results', data=supabase_data)
+                
+                if result and len(result) > 0:
+                    analysis_id = result[0]['id']
+                    logger.info(f"Successfully created new record, ID: {analysis_id}")
+                else:
+                    analysis_id = None
+                    logger.warning(f"Failed to create new record for {filename}. Result: {result}")
+                    
+        except Exception as e:
             analysis_id = None
-            logger.warning(f"Failed to save to Supabase for {filename}. Result: {result}")
+            logger.error(f"Error checking/updating record: {str(e)}")
         
         # 計算數據匯總統計
         summary_stats = {
