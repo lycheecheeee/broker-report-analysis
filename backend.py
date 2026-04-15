@@ -288,54 +288,8 @@ def ensure_db_initialized():
             # 即使失敗也標記為已初始化，避免重複嘗試
             _db_initialized = True
 
-def hash_password(password):
-    """密碼哈希"""
-    return hashlib.sha256(password.encode()).hexdigest()
-
-def generate_token(user_id):
-    """生成JWT token"""
-    from datetime import timezone
-    payload = {
-        'user_id': user_id,
-        'exp': datetime.now(timezone.utc).timestamp() + 86400  # 24小時過期
-    }
-    return jwt.encode(payload, SECRET_KEY, algorithm='HS256')
-
-def verify_token(token):
-    """驗證JWT token - 公開工具，永遠返回默認用戶ID"""
-    # 公開訪問模式，無需真正驗證 token
-    return 1
-
-def token_required(f):
-    """Token驗證裝飾器"""
-    from functools import wraps
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        token = None
-        if 'Authorization' in request.headers:
-            auth_header = request.headers['Authorization']
-            if auth_header.startswith('Bearer '):
-                token = auth_header.split(' ')[1]
-        
-        if not token:
-            return jsonify({'error': 'Token is missing'}), 401
-        
-        user_id = verify_token(token)
-        if not user_id:
-            return jsonify({'error': 'Token is invalid'}), 401
-        
-        conn = sqlite3.connect(DATABASE)
-        c = conn.cursor()
-        c.execute('SELECT id, username FROM users WHERE id=?', (user_id,))
-        user = c.fetchone()
-        conn.close()
-        
-        if not user:
-            return jsonify({'error': 'User not found'}), 401
-        
-        current_user = {'id': user[0], 'username': user[1]}
-        return f(current_user, *args, **kwargs)
-    return decorated
+# Auth 系統已移除 - 公開工具無需登入
+# 所有 API 使用固定 user_id = 1
 
 def parse_pdf(pdf_path):
     """解析PDF文件"""
@@ -864,59 +818,7 @@ def generate_ai_summary_with_fields(broker_name, rating, target_price, text, fil
         return fallback_summary, fallback_data
 
 # ==================== API路由 ====================
-
-@app.route('/broker_3quilm/api/register', methods=['POST'])
-def register():
-    """用戶註冊"""
-    data = request.json
-    username = data.get('username')
-    password = data.get('password')
-    email = data.get('email', '')
-    
-    if not username or not password:
-        return jsonify({'error': '用戶名和密碼不能為空'}), 400
-    
-    conn = sqlite3.connect(DATABASE)
-    c = conn.cursor()
-    
-    try:
-        c.execute('INSERT INTO users (username, password_hash, email) VALUES (?, ?, ?)',
-                 (username, hash_password(password), email))
-        conn.commit()
-        user_id = c.lastrowid
-        token = generate_token(user_id)
-        return jsonify({
-            'message': '註冊成功',
-            'token': token,
-            'user_id': user_id
-        })
-    except sqlite3.IntegrityError:
-        return jsonify({'error': '用戶名已存在'}), 409
-    finally:
-        conn.close()
-
-@app.route('/broker_3quilm/api/login', methods=['POST'])
-def login():
-    """用戶登入"""
-    data = request.json
-    username = data.get('username')
-    password = data.get('password')
-    
-    conn = sqlite3.connect(DATABASE)
-    c = conn.cursor()
-    c.execute('SELECT id, password_hash FROM users WHERE username = ?', (username,))
-    user = c.fetchone()
-    conn.close()
-    
-    if user and user[1] == hash_password(password):
-        token = generate_token(user[0])
-        return jsonify({
-            'message': '登入成功',
-            'token': token,
-            'user_id': user[0]
-        })
-    else:
-        return jsonify({'error': '用戶名或密碼錯誤'}), 401
+# 註：Login/Register endpoint 已移除 - 公開工具無需登入
 
 @app.route('/broker_3quilm/api/analyze', methods=['POST'])
 @app.route('/broker_3quilm/api/upload-pdf', methods=['POST'])
@@ -1119,12 +1021,8 @@ def analyze_pdf():
 
 @app.route('/broker_3quilm/api/results', methods=['GET'])
 def get_results():
-    """獲取分析結果"""
-    token = request.headers.get('Authorization', '').replace('Bearer ', '')
-    user_id = verify_token(token)
-    
-    if not user_id:
-        return jsonify({'error': '未授權'}), 401
+    """獲取分析結果 - 公開訪問"""
+    user_id = 1  # 公開工具，固定用戶ID
     
     conn = sqlite3.connect(DATABASE)
     c = conn.cursor()
@@ -1150,12 +1048,8 @@ def get_results():
 
 @app.route('/broker_3quilm/api/feedback', methods=['POST'])
 def submit_feedback():
-    """提交反饋"""
-    token = request.headers.get('Authorization', '').replace('Bearer ', '')
-    user_id = verify_token(token)
-    
-    if not user_id:
-        return jsonify({'error': '未授權'}), 401
+    """提交反饋 - 公開訪問"""
+    user_id = 1  # 公開工具，固定用戶ID
     
     data = request.json
     analysis_id = data.get('analysis_id')
@@ -1175,12 +1069,8 @@ def submit_feedback():
 
 @app.route('/broker_3quilm/api/prompts', methods=['GET'])
 def get_prompts():
-    """獲取Prompt模板"""
-    token = request.headers.get('Authorization', '').replace('Bearer ', '')
-    user_id = verify_token(token)
-    
-    if not user_id:
-        return jsonify({'error': '未授權'}), 401
+    """獲取Prompt模板 - 公開訪問"""
+    user_id = 1  # 公開工具，固定用戶ID
     
     conn = sqlite3.connect(DATABASE)
     c = conn.cursor()
@@ -1200,12 +1090,8 @@ def get_prompts():
 
 @app.route('/broker_3quilm/api/prompts', methods=['POST'])
 def save_prompt():
-    """保存Prompt模板"""
-    token = request.headers.get('Authorization', '').replace('Bearer ', '')
-    user_id = verify_token(token)
-    
-    if not user_id:
-        return jsonify({'error': '未授權'}), 401
+    """保存Prompt模板 - 公開訪問"""
+    user_id = 1  # 公開工具，固定用戶ID
     
     data = request.json
     template_name = data.get('template_name')
@@ -1238,12 +1124,12 @@ def root():
 
 
 @app.route('/broker_3quilm/api/charts', methods=['GET'])
-@token_required
-def get_charts(current_user):
+def get_charts():
+    """獲取圖表數據 - 公開訪問"""
     try:
         conn = sqlite3.connect(DATABASE)
         c = conn.cursor()
-        c.execute('SELECT broker_name, rating, target_price, current_price, upside_potential FROM analysis_results WHERE user_id=? ORDER BY created_at DESC LIMIT 10', (current_user['id'],))
+        c.execute('SELECT broker_name, rating, target_price, current_price, upside_potential FROM analysis_results WHERE user_id=1 ORDER BY created_at DESC LIMIT 10')
         results = c.fetchall()
         conn.close()
         
@@ -1265,9 +1151,8 @@ def get_charts(current_user):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/broker_3quilm/api/v1/scan/folder', methods=['POST'])
-@token_required
-def scan_folder(current_user):
-    """掃描文件夾中的PDF文件"""
+def scan_folder():
+    """掃描文件夾中的PDF文件 - 公開訪問"""
     data = request.json
     folder_path = data.get('folder_path', '')
     
@@ -1341,7 +1226,7 @@ def scan_folder(current_user):
                               company_name, stock_code, key_points, risks,
                               chart_path, audio_path, is_public)
                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-                         (current_user['id'], pdf_file, broker_name, rating, target_price,
+                         (1, pdf_file, broker_name, rating, target_price,
                           current_price, upside, ai_summary, '',
                           company_name, stock_code, key_points, risks,
                           None, None, 1))
@@ -1390,29 +1275,10 @@ def list_pdfs():
 
 @app.route('/broker_3quilm/api/analyze-existing-pdf', methods=['POST'])
 def analyze_existing_pdf():
-    """分析已存在的PDF文件（不需要上傳）"""
+    """分析已存在的PDF文件（不需要上傳）- 公開訪問"""
     try:
-        # 簡化驗證：允許測試token或直接跳過
-        token = request.headers.get('Authorization', '').replace('Bearer ', '')
-        
-        # 如果是測試token或沒有token，使用默認用戶ID 1
-        if not token or token == 'test-token':
-            user_id = 1
-            # 確保用戶ID 1存在
-            conn = sqlite3.connect(DATABASE)
-            c = conn.cursor()
-            c.execute("SELECT id FROM users WHERE id = 1")
-            if not c.fetchone():
-                # 創建默認用戶
-                password_hash = hashlib.sha256('admin'.encode()).hexdigest()
-                c.execute("INSERT INTO users (id, username, password_hash) VALUES (1, 'admin', ?)", (password_hash,))
-                conn.commit()
-            conn.close()
-        else:
-            user_id = verify_token(token)
-        
-        if not user_id:
-            return jsonify({'error': '未授權'}), 401
+        # 公開工具，直接使用固定用戶ID
+        user_id = 1
         
         filename = request.form.get('filename')
         folder_path = request.form.get('folder_path', '').strip()  # 獲取自定義文件夾路徑
