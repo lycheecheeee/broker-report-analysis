@@ -711,65 +711,91 @@ def ensure_traditional_chinese(data):
     return data
 
 def generate_ai_summary_with_fields(broker_name, rating, target_price, text, filename):
-    """使用 NVIDIA NIM API 提取完整字段並生成摘要"""
+    """使用 NVIDIA NIM API 提取完整字段並生成摘要（強化推理版）"""
     try:
-        prompt = f"""你是一位專業的金融分析師。請從以下券商研報中提取信息。
+        prompt = f"""你是一位資深金融分析師，擅長從券商研報中提取關鍵信息並進行智能推斷。
 
-【語言要求 - 最重要】
+【核心原則 - 絕對遵守】
 ⚠️ **所有輸出必須100%使用繁體中文** ⚠️
-- 絕對不得使用英文（包括標題、內容、標點符號）
-- 若遇到英文專有名詞，需翻譯為繁體中文（如：Core Investment View → 核心投資觀點）
-- 日期格式：YYYY-MM-DD
+- 絕對禁止使用英文（包括標題、內容、標點符號）
+- 若遇到英文專有名詞，必須翻譯為繁體中文
+- 日期格式統一為：YYYY-MM-DD
 - 數字可以使用阿拉伯數字
 
-【智能推算原則】
-1. **優先使用PDF中的明確信息**
-2. **若字段未明確披露，請根據上下文智能推算**：
-   - 從文件名提取股票代碼/名稱（如 BOA-700.pdf → 騰訊控股 0700.HK）
-   - 從業務描述推斷行業分類（如社交媒體/遊戲 → 互聯網行業）
-   - 從公司規模和業務推斷相關指數（如大型科技公司 → 恆生科技指數）
-   - 從報告類型推斷投資期限（如年度評級 → 12個月）
-3. **推算的字段需在返回結果中標記為 inferred: true**
-4. **在ai_summary中註明哪些是推算數據及置信度**
+【智能推斷策略 - 最重要】
+🎯 **你的任務是盡可能填充所有字段，嚴禁留空或返回「-」**
 
+當 PDF 中未明確提及某些信息時，你必須根據以下線索進行**合理推斷**：
+
+1. **股票名稱 (stock_name)**：
+   - 優先級 1：從 PDF 標題、公司名稱提取
+   - 優先級 2：從文件名推斷（例如：BOA-700.pdf → 「騰訊控股」，CICC-9988.pdf → 「阿里巴巴」）
+   - 優先級 3：從業務描述推斷（如提到「社交媒體平台」、「遊戲業務」→ 騰訊控股）
+   - 常見代碼映射表：
+     * 700 / 0700.HK → 騰訊控股
+     * 9988 / 9988.HK → 阿里巴巴
+     * 9618 / 9618.HK → 京東集團
+     * 1810 / 1810.HK → 小米集團
+     * 3690 / 3690.HK → 美團
+     * 1211 / 1211.HK → 比亞迪股份
+
+2. **行業分類 (industry)**：
+   - 基於公司業務進行多維度標籤化
+   - 示例：
+     * 騰訊 → 「互聯網/社交媒體/遊戲/金融科技」
+     * 阿里巴巴 → 「電商/雲端計算/物流」
+     * 美團 → 「本地生活服務/外賣配送/到店業務」
+   - 允許多個標籤用「/」分隔
+
+3. **子行業 (sub_industry)**：
+   - 更細分的業務領域
+   - 示例：在線遊戲、社交網絡、數字廣告、雲端服務、支付平台、電子商務等
+
+4. **相關指數 (indexes)**：
+   - 優先級 1：從 PDF 中提取提及的指數
+   - 優先級 2：根據公司規模和行業推斷：
+     * 大型藍籌股 → 「恆生指數」
+     * 科技股 → 「恆生科技指數」
+     * 中國企業 → 「恆生中國企業指數」
+     * 紅籌股 → 「恆生紅籌指數」
+   - 允許多個指數用「/」分隔
+
+5. **投資期限 (investment_horizon)**：
+   - 優先級 1：從 PDF 中提取（如「12個月目標價」）
+   - 優先級 2：默認推斷為「12個月」（券商評級標準做法）
+   - 其他常見值：「6個月」、「18個月」、「長期」
+
+6. **發布日期 (release_date)**：
+   - 優先級 1：從 PDF 中提取明確日期
+   - 優先級 2：從文件名推斷（如有日期信息）
+   - 優先級 3：使用當前日期作為最後手段
+
+【置信度評分標準】
+- 0.9-1.0：PDF 中明確提及，高度確信
+- 0.7-0.89：基於強上下文推斷，較高確信
+- 0.5-0.69：基於弱線索推斷，中等確信
+- < 0.5：純猜測，低確信（應避免）
+
+【輸入信息】
 文件名: {filename}
 券商: {broker_name}
 評級: {rating}
 目標價: HK${'{:.2f}'.format(target_price) if target_price else '未明確'}
 
-研報內容:
+研報內容（前 3000 字符）:
 {text[:3000]}
 
-【任務要求】
-請完成以下任務:
-1. **發布日期**：從PDF中提取（格式: YYYY-MM-DD），若找不到則嘗試從文件名或當前日期推算
-2. **股票名稱**：
-   - 優先從PDF標題或公司名稱提取
-   - 若無，從文件名推算（如 700 → 騰訊控股）
-   - 常見代碼映射：700=騰訊控股, 9988=阿里巴巴, 9618=京東集團, 1810=小米集團
-3. **行業分類**（多維度標籤）：
-   - 基於PDF中的業務描述進行分類
-   - 例如：互聯網/社交媒體/遊戲、金融科技/支付平台/雲端服務、消費零售/電商/物流
-   - 允許多個標籤用/分隔
-4. **子行業**：更細分的業務領域（如：在線遊戲、雲計算、數字廣告等）
-5. **相關指數**：
-   - 從PDF中提取提及的指數
-   - 若無，根據公司規模和行業推算（如大型科技公司 → 恆生指數、恆生科技指數）
-6. **投資期限**：
-   - 從PDF中提取（如「12個月目標價」）
-   - 若無，默認推算為「12個月」（券商評級慣例）
-7. **生成專業分析摘要**
+【輸出格式 - 嚴格遵守】
+你必須返回一個**純淨的 JSON 對象**（不要包含 markdown 代碼塊標記如 \`\`\`json），結構如下：
 
-【返回格式】
-請以JSON格式返回，結構如下:
 {{
-  "release_date": "YYYY-MM-DD",
-  "stock_name": "股票名稱（若推算則添加備註）",
-  "industry": "行業分類（可多標籤，用/分隔）",
+  "release_date": "YYYY-MM-DD 格式，若無法確定則使用當前日期",
+  "stock_name": "完整的股票中文名稱，嚴禁留空",
+  "industry": "行業分類標籤（用/分隔多個）",
   "sub_industry": "子行業分類",
-  "indexes": "相關指數（可多個，用/分隔）",
+  "indexes": "相關指數（用/分隔多個）",
   "investment_horizon": "投資期限（如：12個月）",
-  "inferred_fields": ["列出所有推算字段，如 ['stock_name', 'investment_horizon']"],
+  "inferred_fields": ["列出所有推斷字段的名称，如 ['stock_name', 'indexes']"],
   "confidence_scores": {{
     "release_date": 0.9,
     "stock_name": 0.95,
@@ -778,87 +804,251 @@ def generate_ai_summary_with_fields(broker_name, rating, target_price, text, fil
     "indexes": 0.75,
     "investment_horizon": 0.9
   }},
-  "ai_summary": "專業分析摘要，必須100%使用繁體中文：\n\n【核心投資觀點】\n（此處填寫繁體中文內容，不得使用英文）\n\n【主要風險提示】\n（此處填寫繁體中文內容，不得使用英文）\n\n【建議操作策略】\n（此處填寫繁體中文內容，不得使用英文）\n\n若有推算數據，需在批註中註明『推算』及置信度（高/中/低）。\n\n要求：簡潔專業，使用繁體中文，要點式呈現"
+  "ai_summary": "專業分析摘要（繁體中文），包含：\n\n【核心投資觀點】\n簡述券商的核心邏輯和看好原因\n\n【主要風險提示】\n列出關鍵風險因素\n\n【建議操作策略】\n給出具體操作建議\n\n若有推斷數據，需在括號中註明『推斷』及置信度。要求：簡潔專業，要點式呈現，總長度控制在 300 字以內"
 }}
 
-【注意事項】
-- **語言強制**：所有字段（包括 ai_summary）必須100%使用繁體中文，絕對不得出現英文
-- **積極推算**：寧願推算也不要留空，但需標記為 inferred
-- industry/sub_industry 應基於PDF中的業務描述進行合理分類，允許多維度標籤
-- indexes 可根據公司規模和行業特點推算（大型藍籌 → 恆生指數，科技股 → 恆生科技指數）
-- investment_horizon 默認為「12個月」（券商評級標準做法）
-- ai_summary 必須基於PDF實際內容，推算部分需註明
-- 只返回純JSON，不要markdown代碼塊或其他文字"""
+【最終檢查清單】
+✅ 所有字段都已填充，沒有任何「-」或空值
+✅ stock_name 是完整的中文公司名稱
+✅ industry 和 indexes 使用了合理的推斷
+✅ ai_summary 完全使用繁體中文
+✅ JSON 格式正確，可以直接解析
+✅ 沒有 markdown 代碼塊標記
+
+現在，請開始分析並返回 JSON："""
 
         # 檢查 NVIDIA API Key 是否設置
         if not NVIDIA_API_KEY or NVIDIA_API_KEY.strip() == '':
-            logger.warning("NVIDIA_API_KEY not set, using fallback")
-            fallback_summary = f"基於{broker_name}的研報分析：\n\n• 評級: {rating}\n• 目標價: HK${'{:.2f}'.format(target_price) if target_price else '未明確'}\n\n（註：AI服務未配置，顯示基本信息）"
-            fallback_data = {
-                'release_date': '-',
-                'stock_name': '-',
-                'industry': '-',
-                'sub_industry': '-',
-                'indexes': '-',
-                'investment_horizon': '-',
-                'inferred_fields': [],
-                'ai_summary': fallback_summary
-            }
-            return fallback_summary, fallback_data
+            logger.warning("NVIDIA_API_KEY not configured, using fallback")
+            return _create_fallback_response(broker_name, rating, target_price, "API密鑰未配置")
         
-        ai_content = call_nvidia_api(prompt, max_tokens=800, temperature=0.3)
+        # 調用 NVIDIA API（帶重試機制）
+        ai_content = call_nvidia_api(prompt, max_tokens=1000, temperature=0.2)
         
-        if ai_content:
-            logger.debug(f"Raw NVIDIA response: {ai_content[:200]}")
+        if not ai_content:
+            logger.error("NVIDIA API returned empty after retries, using fallback")
+            return _create_fallback_response(broker_name, rating, target_price, "API調用失敗")
+        
+        logger.debug(f"Raw NVIDIA response (first 300 chars): {ai_content[:300]}")
+        
+        # 清理並解析 JSON
+        try:
+            # 移除 markdown 代碼塊標記
+            ai_content_clean = ai_content.strip()
+            ai_content_clean = ai_content_clean.replace('```json', '').replace('```', '').strip()
             
-            # 嘗試解析 JSON
-            try:
-                # 移除可能的 markdown 代碼塊標記
-                ai_content_clean = ai_content.replace('```json', '').replace('```', '').strip()
-                extracted_data = json.loads(ai_content_clean)
-                
-                logger.info("Fields extracted successfully via NVIDIA")
-                
-                # 強制檢查並修正語言：確保所有字段都是繁體中文
-                extracted_data = ensure_traditional_chinese(extracted_data)
-                
-                return extracted_data.get('ai_summary', ''), extracted_data
-            except json.JSONDecodeError as e:
-                logger.error(f"JSON parse failed: {e}")
-                # 回退到舊方法
-                return ai_content, {}
-        else:
-            logger.error("NVIDIA API returned empty, using fallback")
-            # API失敗時返回基本數據
-            fallback_summary = f"基於{broker_name}的研報分析：\n\n• 評級: {rating}\n• 目標價: HK${target_price:.2f}\n\n（註：AI分析服務暫時不可用，顯示基本信息）"
-            fallback_data = {
-                'release_date': '-',
-                'stock_name': '-',
-                'industry': '-',
-                'sub_industry': '-',
-                'indexes': '-',
-                'investment_horizon': '-',
-                'inferred_fields': [],
-                'ai_summary': fallback_summary
-            }
-            return fallback_summary, fallback_data
+            # 嘗試找到 JSON 對象的起始和結束位置
+            json_start = ai_content_clean.find('{')
+            json_end = ai_content_clean.rfind('}') + 1
+            
+            if json_start >= 0 and json_end > json_start:
+                ai_content_clean = ai_content_clean[json_start:json_end]
+            
+            extracted_data = json.loads(ai_content_clean)
+            logger.info(f"Fields extracted successfully via NVIDIA (attempt with clean JSON)")
+            
+            # 驗證必要字段是否存在，若缺失則補充
+            extracted_data = _validate_and_fill_fields(extracted_data, filename, broker_name)
+            
+            # 強制檢查並修正語言：確保所有字段都是繁體中文
+            extracted_data = ensure_traditional_chinese(extracted_data)
+            
+            return extracted_data.get('ai_summary', ''), extracted_data
+            
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON parse failed: {e}. Raw content: {ai_content[:200]}")
+            # 嘗試修復常見 JSON 錯誤
+            fixed_data = _try_fix_json(ai_content)
+            if fixed_data:
+                logger.info("Successfully fixed JSON parsing error")
+                fixed_data = _validate_and_fill_fields(fixed_data, filename, broker_name)
+                fixed_data = ensure_traditional_chinese(fixed_data)
+                return fixed_data.get('ai_summary', ''), fixed_data
+            
+            # 若修復失敗，返回原始內容作為摘要
+            logger.warning("JSON fix failed, returning raw content as summary")
+            return ai_content[:500], _create_minimal_data(filename, broker_name)
+            
     except Exception as e:
-        logger.error(f"Analysis failed: {str(e)}, using fallback")
+        logger.error(f"Analysis failed with exception: {type(e).__name__}: {str(e)}")
         import traceback
         traceback.print_exc()
-        # 異常時也返回基本數據
-        fallback_summary = f"基於{broker_name}的研報分析：\n\n• 評級: {rating}\n• 目標價: HK${'{:.2f}'.format(target_price) if target_price else '未明確'}\n\n（註：AI分析服務暫時不可用）"
-        fallback_data = {
-            'release_date': '-',
-            'stock_name': '-',
-            'industry': '-',
-            'sub_industry': '-',
-            'indexes': '-',
-            'investment_horizon': '-',
-            'inferred_fields': [],
-            'ai_summary': fallback_summary
-        }
-        return fallback_summary, fallback_data
+        return _create_fallback_response(broker_name, rating, target_price, f"異常錯誤: {str(e)}")
+
+
+def _create_fallback_response(broker_name, rating, target_price, reason):
+    """創建降級響應（僅在 API 完全失敗時使用）"""
+    fallback_summary = f"基於{broker_name}的研報分析：\n\n• 評級: {rating}\n• 目標價: HK${'{:.2f}'.format(target_price) if target_price else '未明確'}\n\n（註：{reason}）"
+    fallback_data = {
+        'release_date': datetime.now().strftime('%Y-%m-%d'),
+        'stock_name': '-',
+        'industry': '-',
+        'sub_industry': '-',
+        'indexes': '-',
+        'investment_horizon': '12個月',
+        'inferred_fields': [],
+        'confidence_scores': {},
+        'ai_summary': fallback_summary
+    }
+    return fallback_summary, fallback_data
+
+
+def _create_minimal_data(filename, broker_name):
+    """創建最小化數據結構（用於 JSON 解析失敗時）"""
+    return {
+        'release_date': datetime.now().strftime('%Y-%m-%d'),
+        'stock_name': '-',
+        'industry': '-',
+        'sub_industry': '-',
+        'indexes': '-',
+        'investment_horizon': '12個月',
+        'inferred_fields': [],
+        'confidence_scores': {},
+        'ai_summary': ''
+    }
+
+
+def _validate_and_fill_fields(data, filename, broker_name):
+    """驗證並填充缺失字段（智能推斷）"""
+    if not isinstance(data, dict):
+        data = {}
+    
+    # 股票名稱推斷
+    if not data.get('stock_name') or data['stock_name'] in ['-', '', None]:
+        data['stock_name'] = _infer_stock_name(filename)
+        if 'stock_name' not in data.get('inferred_fields', []):
+            data.setdefault('inferred_fields', []).append('stock_name')
+        data.setdefault('confidence_scores', {})['stock_name'] = 0.8
+    
+    # 行業分類推斷
+    if not data.get('industry') or data['industry'] in ['-', '', None]:
+        data['industry'] = _infer_industry(data.get('stock_name', ''), filename)
+        if 'industry' not in data.get('inferred_fields', []):
+            data.setdefault('inferred_fields', []).append('industry')
+        data.setdefault('confidence_scores', {})['industry'] = 0.75
+    
+    # 子行業推斷
+    if not data.get('sub_industry') or data['sub_industry'] in ['-', '', None]:
+        data['sub_industry'] = _infer_sub_industry(data.get('industry', ''))
+        if 'sub_industry' not in data.get('inferred_fields', []):
+            data.setdefault('inferred_fields', []).append('sub_industry')
+        data.setdefault('confidence_scores', {})['sub_industry'] = 0.7
+    
+    # 相關指數推斷
+    if not data.get('indexes') or data['indexes'] in ['-', '', None]:
+        data['indexes'] = _infer_indexes(data.get('stock_name', ''), data.get('industry', ''))
+        if 'indexes' not in data.get('inferred_fields', []):
+            data.setdefault('inferred_fields', []).append('indexes')
+        data.setdefault('confidence_scores', {})['indexes'] = 0.7
+    
+    # 投資期限默認值
+    if not data.get('investment_horizon') or data['investment_horizon'] in ['-', '', None]:
+        data['investment_horizon'] = '12個月'
+        if 'investment_horizon' not in data.get('inferred_fields', []):
+            data.setdefault('inferred_fields', []).append('investment_horizon')
+        data.setdefault('confidence_scores', {})['investment_horizon'] = 0.9
+    
+    # 發布日期默認值
+    if not data.get('release_date') or data['release_date'] in ['-', '', None]:
+        data['release_date'] = datetime.now().strftime('%Y-%m-%d')
+        if 'release_date' not in data.get('inferred_fields', []):
+            data.setdefault('inferred_fields', []).append('release_date')
+        data.setdefault('confidence_scores', {})['release_date'] = 0.5
+    
+    return data
+
+
+def _infer_stock_name(filename):
+    """從文件名推斷股票名稱"""
+    filename_upper = filename.upper()
+    
+    stock_mapping = {
+        '700': '騰訊控股',
+        '0700': '騰訊控股',
+        '9988': '阿里巴巴',
+        '9618': '京東集團',
+        '1810': '小米集團',
+        '3690': '美團',
+        '1211': '比亞迪股份',
+        'TENCENT': '騰訊控股',
+        'ALIBABA': '阿里巴巴',
+        'JD': '京東集團',
+        'XIAOMI': '小米集團',
+        'MEITUAN': '美團',
+        'BYD': '比亞迪股份'
+    }
+    
+    for key, name in stock_mapping.items():
+        if key in filename_upper:
+            return name
+    
+    return '未知股票'
+
+
+def _infer_industry(stock_name, filename):
+    """推斷行業分類"""
+    industry_map = {
+        '騰訊控股': '互聯網/社交媒體/遊戲/金融科技',
+        '阿里巴巴': '電商/雲端計算/物流',
+        '京東集團': '電商/物流/零售',
+        '小米集團': '消費電子/智能家居/互聯網',
+        '美團': '本地生活服務/外賣配送/到店業務',
+        '比亞迪股份': '新能源汽車/電池/太陽能'
+    }
+    
+    for key, industry in industry_map.items():
+        if key in stock_name:
+            return industry
+    
+    return '綜合企業'
+
+
+def _infer_sub_industry(industry):
+    """推斷子行業"""
+    if '遊戲' in industry:
+        return '在線遊戲'
+    elif '社交' in industry:
+        return '社交網絡'
+    elif '電商' in industry:
+        return '電子商務'
+    elif '雲端' in industry or '雲計算' in industry:
+        return '雲端服務'
+    elif '新能源' in industry or '汽車' in industry:
+        return '電動汽車'
+    else:
+        return '綜合業務'
+
+
+def _infer_indexes(stock_name, industry):
+    """推斷相關指數"""
+    indexes = []
+    
+    # 大型藍籌股
+    if any(name in stock_name for name in ['騰訊', '阿里巴巴', '美團', '小米']):
+        indexes.append('恆生指數')
+    
+    # 科技股
+    if any(keyword in industry for keyword in ['互聯網', '科技', '電商', '遊戲']):
+        indexes.append('恆生科技指數')
+    
+    # 中國企業
+    if any(name in stock_name for name in ['騰訊', '阿里巴巴', '京東', '美團']):
+        indexes.append('恆生中國企業指數')
+    
+    return '/'.join(indexes) if indexes else '恆生指數'
+
+
+def _try_fix_json(raw_content):
+    """嘗試修復常見的 JSON 解析錯誤"""
+    try:
+        # 移除尾部逗號
+        fixed = re.sub(r',\s*}', '}', raw_content)
+        fixed = re.sub(r',\s*]', ']', fixed)
+        
+        # 嘗試解析
+        return json.loads(fixed)
+    except:
+        return None
 
 # ==================== API路由 ====================
 # 註：Login/Register endpoint 已移除 - 公開工具無需登入
