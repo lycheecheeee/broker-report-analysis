@@ -493,8 +493,11 @@
             console.log('[FOLDER] 選擇的文件夾:', folderPath);
             console.log('[FOLDER] 文件數量:', files.length);
             
-            // 顯示提示
-            alert(`已選擇文件夾: ${folderPath}\n包含 ${files.filter(f => f.name.endsWith('.pdf')).length} 個PDF文件`);
+            // 使用 setTimeout 延遲顯示提示，避免阻塞 UI
+            setTimeout(() => {
+                const pdfCount = files.filter(f => f.name.endsWith('.pdf')).length;
+                console.log(`✅ 已選擇文件夾: ${folderPath} (包含 ${pdfCount} 個PDF文件)`);
+            }, 50);
         }
 
         async function handleFileUpload(event) {

@@ -54,16 +54,19 @@ def log_request():
 
 
 # 配置
-SECRET_KEY = os.environ.get('SECRET_KEY', 'tencent-broker-analysis-secret-key-2026')
+SECRET_KEY = os.environ.get('SECRET_KEY')
+if not SECRET_KEY:
+    raise EnvironmentError("Missing required environment variable: SECRET_KEY")
+
 # Supabase 配置
-SUPABASE_URL = os.environ.get('SUPABASE_URL', 'https://excfzahjozmmbnteyuij.supabase.co')
-SUPABASE_KEY = os.environ.get('SUPABASE_KEY', '')
+SUPABASE_URL = os.environ.get('SUPABASE_URL')
+SUPABASE_KEY = os.environ.get('SUPABASE_KEY')
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), '700')
 OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY', '')
 OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions'
 
 # 數據庫模式：'supabase' 或 'sqlite'
-DB_MODE = 'supabase' if SUPABASE_KEY else ('sqlite' if not os.environ.get('VERCEL') else 'memory')
+DB_MODE = 'supabase' if SUPABASE_KEY and SUPABASE_URL else ('sqlite' if not os.environ.get('VERCEL') else 'memory')
 
 # 確保上傳文件夾存在
 try:
@@ -559,7 +562,7 @@ def generate_ai_summary(broker_name, rating, target_price, text):
         headers = {
             'Authorization': f'Bearer {OPENROUTER_API_KEY}',
             'Content-Type': 'application/json',
-            'HTTP-Referer': os.environ.get('VERCEL_URL', 'http://localhost:62190'),
+            'HTTP-Referer': os.environ.get('VERCEL_URL', ''),
             'X-Title': 'Broker Report Analysis'
         }
         
@@ -760,7 +763,7 @@ def generate_ai_summary_with_fields(broker_name, rating, target_price, text, fil
         headers = {
             'Authorization': f'Bearer {OPENROUTER_API_KEY}',
             'Content-Type': 'application/json',
-            'HTTP-Referer': os.environ.get('VERCEL_URL', 'http://localhost:62190'),
+            'HTTP-Referer': os.environ.get('VERCEL_URL', ''),
             'X-Title': 'Broker Report Analysis'
         }
         
@@ -1914,10 +1917,8 @@ if __name__ == '__main__':
     print("\n" + "="*60)
     print("🚀 Broker Report Analysis System")
     print("="*60)
-    print(f"📍 Server: http://localhost:62190")
-    print(f"📍 Login: http://localhost:62190/broker_3quilm/")
-    print(f"📍 Dashboard: http://localhost:62190/broker_3quilm/dashboard")
-    print(f"📍 Health Check: http://localhost:62190/api/health")
+    print(f"📍 Server: https://{os.environ.get('VERCEL_URL', 'your-app.vercel.app')}")
+    print(f"📍 Health Check: https://{os.environ.get('VERCEL_URL', 'your-app.vercel.app')}/api/health")
     print("="*60 + "\n")
     
     app.run(debug=True, port=62190, use_reloader=False)
