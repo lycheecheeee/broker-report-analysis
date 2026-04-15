@@ -390,7 +390,8 @@
                 <div class="upload-hint">支援單一或多個PDF文件</div>
             </div>
             
-            <input type="file" id="fileInput" accept=".pdf" multiple onchange="handleFileUpload(event)">
+            <label for="fileInput" style="display:none;">上傳 PDF 文件</label>
+            <input type="file" id="fileInput" accept=".pdf" multiple onchange="handleFileUpload(event)" aria-label="選擇 PDF 文件">
             
             <!-- 新增：自定義路徑輸入 -->
             <div style="margin:15px 0;">
@@ -401,10 +402,13 @@
                     PDF文件夾路徑：
                 </label>
                 <div style="display:flex; gap:10px; align-items:center;">
+                    <label for="pdfFolderPath" style="display:none;">PDF 文件夾路徑</label>
                     <input type="text" id="pdfFolderPath" value="" placeholder="D:/PDFs/BrokerReports" 
                            style="flex:1; padding:10px; border:2px solid #e9ecef; border-radius:8px; font-size:14px; box-sizing:border-box; transition:border-color 0.3s;"
-                           onfocus="this.style.borderColor='#667eea'" onblur="this.style.borderColor='#e9ecef'">
-                    <input type="file" id="folderInput" webkitdirectory directory multiple style="display:none;" onchange="handleFolderSelect(event)">
+                           onfocus="this.style.borderColor='#667eea'" onblur="this.style.borderColor='#e9ecef'"
+                           aria-label="輸入 PDF 文件夾路徑">
+                    <label for="folderInput" style="display:none;">瀏覽文件夾</label>
+                    <input type="file" id="folderInput" webkitdirectory directory multiple style="display:none;" onchange="handleFolderSelect(event)" aria-label="選擇包含 PDF 的文件夾">
                     <button onclick="document.getElementById('folderInput').click()" 
                             style="padding:10px 20px; background:linear-gradient(135deg, #667eea 0%, #764ba2 100%); color:white; border:none; border-radius:8px; cursor:pointer; font-size:14px; white-space:nowrap; transition:transform 0.2s, box-shadow 0.2s;"
                             onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(102,126,234,0.4)'"
