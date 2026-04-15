@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>智能財報分析平台 - 百搭PDF解析器</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="enhanced_charts.js"></script>
     <script>
         // 檢查 Chart.js 是否成功載入
         if (typeof Chart === 'undefined') {
@@ -332,25 +333,263 @@
             pointer-events: none;
         }
         
-        /* 市場情緒摘要卡片 */
-        .sentiment-card {
-            grid-column: 1 / -1;
+        /* Enhanced Chart Styles with 3D Effects */
+        .chart-container {
+            position: relative;
+            padding: 25px;
+            background: linear-gradient(145deg, rgba(255,255,255,0.9), rgba(255,255,255,0.7));
+            border-radius: 20px;
+            box-shadow: 
+                0 10px 40px rgba(0,0,0,0.1),
+                0 2px 10px rgba(0,0,0,0.05),
+                inset 0 1px 0 rgba(255,255,255,0.8);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
+        }
+                
+        .chart-container::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(102,126,234,0.1) 0%, transparent 70%);
+            opacity: 0;
+            transition: opacity 0.4s ease;
+            pointer-events: none;
+        }
+                
+        .chart-container:hover {
+            transform: translateY(-5px) scale(1.02);
+            box-shadow: 
+                0 20px 60px rgba(102,126,234,0.2),
+                0 5px 20px rgba(0,0,0,0.1),
+                inset 0 1px 0 rgba(255,255,255,1);
+        }
+                
+        .chart-container:hover::before {
+            opacity: 1;
+        }
+                
+        /* AI Summary Card with Modern Design */
+        .ai-summary-card {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            border: none;
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 25px;
+            box-shadow: 
+                0 15px 50px rgba(102,126,234,0.3),
+                0 5px 15px rgba(0,0,0,0.1);
+            position: relative;
+            overflow: hidden;
+            animation: slideInUp 0.6s ease-out;
         }
-        
-        .sentiment-card h3 {
-            color: white !important;
+                
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
-        
-        .sentiment-text {
-            font-size: 16px;
+                
+        .ai-summary-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            animation: pulse 4s ease-in-out infinite;
+        }
+                
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 0.5; }
+            50% { transform: scale(1.1); opacity: 0.8; }
+        }
+                
+        .ai-summary-content {
+            position: relative;
+            z-index: 1;
+        }
+                
+        .ai-summary-title {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+                
+        .ai-summary-text {
+            font-size: 15px;
             line-height: 1.8;
-            padding: 15px;
-            background: rgba(255, 255, 255, 0.15);
-            border-radius: 12px;
+            opacity: 0.95;
+            margin-bottom: 20px;
+        }
+                
+        .ai-outline {
+            background: rgba(255,255,255,0.15);
             backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 15px;
+        }
+                
+        .ai-outline-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            margin-bottom: 12px;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+                
+        .ai-outline-item:last-child {
+            margin-bottom: 0;
+        }
+                
+        .ai-outline-icon {
+            width: 24px;
+            height: 24px;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+                
+        /* Business Segment Treemap */
+        .treemap-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+                
+        .treemap-item {
+            padding: 20px;
+            border-radius: 15px;
+            color: white;
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+                
+        .treemap-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, rgba(255,255,255,0.2) 0%, transparent 100%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+                
+        .treemap-item:hover {
+            transform: translateY(-5px) scale(1.05);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.25);
+        }
+                
+        .treemap-item:hover::before {
+            opacity: 1;
+        }
+                
+        .treemap-label {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            position: relative;
+            z-index: 1;
+        }
+                
+        .treemap-value {
+            font-size: 28px;
+            font-weight: 800;
+            position: relative;
+            z-index: 1;
+        }
+                
+        .treemap-change {
+            font-size: 12px;
+            margin-top: 8px;
+            opacity: 0.9;
+            position: relative;
+            z-index: 1;
+        }
+                
+        /* Modern Animated Icons */
+        .icon-animated {
+            display: inline-block;
+            transition: all 0.3s ease;
+        }
+                
+        .icon-animated:hover {
+            transform: rotate(360deg) scale(1.2);
+        }
+                
+        .icon-pulse {
+            animation: iconPulse 2s ease-in-out infinite;
+        }
+                
+        @keyframes iconPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+                
+        .icon-bounce {
+            animation: iconBounce 1s ease-in-out infinite;
+        }
+                
+        @keyframes iconBounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+                
+        /* Performance Badge */
+        .perf-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+                
+        .perf-badge:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+        }
+                
+        .perf-badge.excellent {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+        }
+                
+        .perf-badge.good {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: white;
+        }
+                
+        .perf-badge.moderate {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: white;
+        }
+                
+        .perf-badge.poor {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
         }
         
         /* Toast Notification System */
@@ -1359,29 +1598,32 @@
                 `;
                 container.appendChild(exportBtnDiv);
                 
-                // 0. 市場情緒摘要（最重要，放喺最頂）
-                if (data.market_sentiment) {
-                    createMarketSentimentCard(data.market_sentiment, data.price_statistics, container);
+                // 0. AI 智能業績解讀（全新升級）
+                if (data.market_sentiment && data.price_statistics) {
+                    createAISmartSummary(data.market_sentiment, data.price_statistics, container);
                 }
                 
-                // 1. 評級分佈圓餅圖
+                // 1. 評級分佈圓餅圖（3D 增強版）
                 if (data.rating_distribution && data.rating_distribution.length > 0) {
-                    createRatingPieChart(data.rating_distribution, data.price_statistics, container);
+                    createEnhancedRatingPieChart(data.rating_distribution, data.price_statistics, container);
                 }
                 
-                // 2. 券商覆蓋柱狀圖（增強版）
+                // 2. 業務板塊貢獻圖（全新 Treemap）
+                createBusinessSegmentTreemap(container);
+                
+                // 3. 券商覆蓋柱狀圖（增強版）
                 if (data.broker_coverage && data.broker_coverage.length > 0) {
                     createBrokerBarChart(data.broker_coverage, container);
                 }
                 
-                // 3. 時間趨勢折線圖
+                // 4. 時間趨勢折線圖
                 if (data.trend_data && data.trend_data.length > 0) {
                     createTrendLineChart(data.trend_data, container);
                 }
                 
-                // 4. 目標價統計卡片（增強版）
+                // 5. 目標價統計卡片（漸變色增強版）
                 if (data.price_statistics) {
-                    createPriceStatsCard(data.price_statistics, container);
+                    createEnhancedPriceStatsCard(data.price_statistics, container);
                 }
                 
                 console.log('[CHART] ✅ 圖表渲染成功！');
