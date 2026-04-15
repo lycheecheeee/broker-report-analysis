@@ -71,12 +71,21 @@ if not SECRET_KEY:
 # Supabase 配置 - 清理可能的換行符和空白
 SUPABASE_URL = os.environ.get('SUPABASE_URL', '').strip()
 SUPABASE_KEY = os.environ.get('SUPABASE_KEY', '').strip()
+
+# 強制要求 Supabase 配置 - 公開工具必須使用雲端數據庫
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise EnvironmentError(
+        "Missing required environment variables: SUPABASE_URL and SUPABASE_KEY must be set.\n"
+        "This is a public tool that requires cloud database persistence.\n"
+        "Please configure these in Vercel Dashboard > Settings > Environment Variables"
+    )
+
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), '700')
 OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY', '')
 OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions'
 
-# 數據庫模式：'supabase' 或 'sqlite'
-DB_MODE = 'supabase' if SUPABASE_KEY and SUPABASE_URL else ('sqlite' if not os.environ.get('VERCEL') else 'memory')
+# 數據庫模式：強制使用 Supabase
+DB_MODE = 'supabase'
 
 # 確保上傳文件夾存在
 try:
@@ -293,12 +302,9 @@ def generate_token(user_id):
     return jwt.encode(payload, SECRET_KEY, algorithm='HS256')
 
 def verify_token(token):
-    """驗證JWT token"""
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
-        return payload['user_id']
-    except:
-        return None
+    """驗證JWT token - 公開工具，永遠返回默認用戶ID"""
+    # 公開訪問模式，無需真正驗證 token
+    return 1
 
 def token_required(f):
     """Token驗證裝飾器"""
@@ -915,28 +921,20 @@ def login():
 @app.route('/broker_3quilm/api/analyze', methods=['POST'])
 @app.route('/broker_3quilm/api/upload-pdf', methods=['POST'])
 def analyze_pdf():
-    """分析PDF文件"""
+    """分析PDF文件 - 公開訪問，無需登入"""
     try:
-        token = request.headers.get('Authorization', '').replace('Bearer ', '')
+        # 公開工具，使用固定用戶ID
+        user_id = 1
         
-        # 如果是測試token或沒有token，使用默認用戶ID 1
-        if not token or token == 'test-token':
-            user_id = 1
-            # 確保用戶ID 1存在
-            conn = sqlite3.connect(DATABASE)
-            c = conn.cursor()
-            c.execute("SELECT id FROM users WHERE id = 1")
-            if not c.fetchone():
-                password_hash = hashlib.sha256('admin'.encode()).hexdigest()
-                c.execute("INSERT INTO users (id, username, password_hash) VALUES (1, 'admin', ?)", (password_hash,))
-                conn.commit()
-            conn.close()
-        else:
-            user_id = verify_token(token)
-        
-        if not user_id:
-            logger.error("Unauthorized access attempt")
-            return jsonify({'error': '未授權,請先登入'}), 401
+        # 確保默認用戶存在
+        conn = sqlite3.connect(DATABASE)
+        c = conn.cursor()
+        c.execute("SELECT id FROM users WHERE id = 1")
+        if not c.fetchone():
+            password_hash = hashlib.sha256('public'.encode()).hexdigest()
+            c.execute("INSERT INTO users (id, username, password_hash) VALUES (1, 'public_user', ?)", (password_hash,))
+            conn.commit()
+        conn.close()
         
         if 'file' not in request.files:
             logger.error("No file uploaded")
