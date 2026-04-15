@@ -2,14 +2,14 @@
   "version": 2,
   "builds": [
     {
-      "src": "backend.py",
+      "src": "test_vercel.py",
       "use": "@vercel/python"
     }
   ],
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "backend.py"
+      "dest": "test_vercel.py"
     }
   ],
   "env": {
