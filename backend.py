@@ -515,7 +515,7 @@ def generate_ai_summary(broker_name, rating, target_price, text):
 
 券商:{broker_name}
 評級:{rating}
-目標價:HK${target_price if target_price else '未明確'}
+目標價:HK${'{:.2f}'.format(target_price) if target_price else '未明確'}
 
 研報內容摘要:
 {text[:2000]}
@@ -673,7 +673,7 @@ def generate_ai_summary_with_fields(broker_name, rating, target_price, text, fil
 文件名: {filename}
 券商: {broker_name}
 評級: {rating}
-目標價: HK${target_price if target_price else '未明確'}
+目標價: HK${'{:.2f}'.format(target_price) if target_price else '未明確'}
 
 研報內容:
 {text[:3000]}
@@ -738,7 +738,7 @@ def generate_ai_summary_with_fields(broker_name, rating, target_price, text, fil
         # 檢查 API Key 是否設置
         if not OPENROUTER_API_KEY or OPENROUTER_API_KEY.strip() == '':
             logger.warning("OPENROUTER_API_KEY not set, using fallback")
-            fallback_summary = f"基於{broker_name}的研報分析：\n\n• 評級: {rating}\n• 目標價: HK${target_price:.2f if target_price else '未明確'}\n\n（註：AI服務未配置，顯示基本信息）"
+            fallback_summary = f"基於{broker_name}的研報分析：\n\n• 評級: {rating}\n• 目標價: HK${'{:.2f}'.format(target_price) if target_price else '未明確'}\n\n（註：AI服務未配置，顯示基本信息）"
             fallback_data = {
                 'release_date': '-',
                 'stock_name': '-',
@@ -804,7 +804,7 @@ def generate_ai_summary_with_fields(broker_name, rating, target_price, text, fil
         import traceback
         traceback.print_exc()
         # 異常時也返回基本數據
-        fallback_summary = f"基於{broker_name}的研報分析：\n\n• 評級: {rating}\n• 目標價: HK${target_price:.2f if target_price else '未明確'}\n\n（註：AI分析服務暫時不可用）"
+        fallback_summary = f"基於{broker_name}的研報分析：\n\n• 評級: {rating}\n• 目標價: HK${'{:.2f}'.format(target_price) if target_price else '未明確'}\n\n（註：AI分析服務暫時不可用）"
         fallback_data = {
             'release_date': '-',
             'stock_name': '-',
@@ -957,26 +957,37 @@ def analyze_pdf():
             logger.warning("AI analysis failed, using fallback")
             ai_summary = f"基於{broker_name}的研報分析:\n\n"
             ai_summary += f"• 評級: {rating}\n"
-            ai_summary += f"• 目標價: HK${target_price:.2f}\n" if target_price else "• 目標價: 未明確\n"
-            ai_summary += f"• 上行空間: {upside}%\n" if upside else ""
+            if target_price:
+                ai_summary += f"• 目標價: HK${target_price:.2f}\n"
+            else:
+                ai_summary += "• 目標價: 未明確\n"
+            if upside:
+                ai_summary += f"• 上行空間: {upside}%\n"
             ai_summary += f"\n核心觀點摘要:\n{text[:500]}..."
         
-        # 保存到數據庫
-        conn = sqlite3.connect(DATABASE)
-        c = conn.cursor()
-        c.execute('''INSERT INTO analysis_results 
-                     (user_id, pdf_filename, broker_name, rating, target_price, 
-                      current_price, upside_potential, ai_summary, prompt_used,
-                      company_name, stock_code, key_points, risks,
-                      chart_path, audio_path, is_public)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-                 (user_id, filename, broker_name, rating, target_price,
-                  current_price, upside, ai_summary, prompt,
-                  company_name, stock_code, key_points, risks,
-                  None, None, 1))  # chart_path, audio_path, is_public=1
-        analysis_id = c.lastrowid
-        conn.commit()
-        conn.close()
+        # 保存到 Supabase
+        supabase_data = {
+            'user_id': user_id,
+            'pdf_filename': filename,
+            'broker_name': broker_name,
+            'rating': rating,
+            'target_price': target_price,
+            'current_price': current_price,
+            'upside_potential': upside,
+            'ai_summary': ai_summary,
+            'prompt_used': prompt,
+            'company_name': company_name,
+            'stock_code': stock_code,
+            'key_points': key_points,
+            'risks': risks,
+            'chart_path': None,
+            'audio_path': None,
+            'is_public': 1,
+            'created_at': datetime.utcnow().isoformat()
+        }
+        
+        result = supabase_request('POST', 'analysis_results', data=supabase_data)
+        analysis_id = result[0]['id'] if result and len(result) > 0 else None
         
         logger.info(f"Analysis completed, ID: {analysis_id}")
         
