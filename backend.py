@@ -25,7 +25,14 @@ import re
 import requests
 
 app = Flask(__name__, static_folder='.', static_url_path='')
-CORS(app, resources={r"/*": {"origins": "*", "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"], "allow_headers": ["Content-Type", "Authorization"]}})
+
+# 簡化 CORS 配置 - 避免 Vercel 環境問題
+try:
+    CORS(app)
+    print("[CORS] ✅ Initialized")
+except Exception as e:
+    print(f"[CORS] ⚠️ Error: {e}")
+
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 最大上傳 50MB
 
 # 添加請求日誌中間件
