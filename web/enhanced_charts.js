@@ -373,7 +373,17 @@ function createEnhancedPriceStatsCard(stats, container) {
     container.appendChild(cardDiv);
 }
 
-// Export functions
+// Export functions for browser environment
+if (typeof window !== 'undefined') {
+    // Make functions available globally for browser
+    window.createEnhancedRatingPieChart = createEnhancedRatingPieChart;
+    window.createBusinessSegmentTreemap = createBusinessSegmentTreemap;
+    window.createAISmartSummary = createAISmartSummary;
+    window.createEnhancedPriceStatsCard = createEnhancedPriceStatsCard;
+    console.log('[ENHANCED CHARTS] ✅ All functions loaded successfully');
+}
+
+// Export for Node.js/CommonJS
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         createEnhancedRatingPieChart,
