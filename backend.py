@@ -1859,6 +1859,12 @@ def export_analysis_report():
         return jsonify({'error': str(e)}), 500
 
 # Simple test endpoint (no database required)
+# Root endpoint
+@app.route('/', methods=['GET'])
+def index():
+    """根路由 - 返回主頁面"""
+    return send_from_directory('.', 'web/universal_pdf_dashboard.html')
+
 @app.route('/api/test', methods=['GET'])
 def test_endpoint():
     """簡單測試端點"""
