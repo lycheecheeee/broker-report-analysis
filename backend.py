@@ -52,8 +52,12 @@ OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY', '')
 OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions'
 
 # 確保上傳文件夾存在
-if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
+try:
+    if not os.path.exists(UPLOAD_FOLDER):
+        os.makedirs(UPLOAD_FOLDER)
+    print(f"[UPLOAD] ✅ Folder ready: {UPLOAD_FOLDER}")
+except Exception as e:
+    print(f"[UPLOAD] ⚠️ Folder creation error: {e}")
 
 # 數據庫初始化標誌
 _db_initialized = False
