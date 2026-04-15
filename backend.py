@@ -1838,7 +1838,7 @@ def test_endpoint():
         return jsonify({'error': str(e), 'traceback': traceback.format_exc()}), 500
 
 # Health check endpoint
-@app.route('/api/health', methods=['GET'])
+@app.route('/broker_3quilm/api/health', methods=['GET'])
 def health_check():
     """健康檢查端點"""
     try:
