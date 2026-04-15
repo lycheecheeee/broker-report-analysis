@@ -84,6 +84,11 @@ UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), '700')
 OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY', '')
 OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions'
 
+# NVIDIA NIM API 配置（優先使用）
+NVIDIA_API_KEY = os.environ.get('NVIDIA_API_KEY', '')
+NVIDIA_API_URL = 'https://integrate.api.nvidia.com/v1/chat/completions'
+NVIDIA_MODEL = 'meta/llama-3.1-405b-instruct'  # 使用 Llama 3.1 405B
+
 # 數據庫模式：強制使用 Supabase
 DB_MODE = 'supabase'
 
@@ -516,8 +521,76 @@ def extract_release_date(text):
     logger.debug("No valid date found")
     return '-'
 
+def call_nvidia_api(prompt, max_tokens=800, temperature=0.3, retries=2):
+    """調用 NVIDIA NIM API 生成 AI 回應（帶重試機制）"""
+    for attempt in range(retries + 1):
+        try:
+            if not NVIDIA_API_KEY or NVIDIA_API_KEY.strip() == '':
+                logger.warning("NVIDIA_API_KEY not configured")
+                return None
+            
+            headers = {
+                'Authorization': f'Bearer {NVIDIA_API_KEY}',
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            }
+            
+            payload = {
+                'model': NVIDIA_MODEL,
+                'messages': [
+                    {'role': 'user', 'content': prompt}
+                ],
+                'max_tokens': max_tokens,
+                'temperature': temperature,
+                'top_p': 0.7,
+                'stream': False
+            }
+            
+            timeout = 120 if attempt == 0 else 90  # 首次嘗試 120 秒，重試 90 秒
+            logger.debug(f"Calling NVIDIA NIM API (attempt {attempt + 1}/{retries + 1}) with model: {NVIDIA_MODEL}")
+            response = requests.post(NVIDIA_API_URL, headers=headers, json=payload, timeout=timeout)
+            
+            if response.status_code == 200:
+                result = response.json()
+                content = result['choices'][0]['message']['content']
+                logger.info(f"NVIDIA API success on attempt {attempt + 1}, response length: {len(content)}")
+                return content
+            elif response.status_code == 429:  # Rate limit
+                logger.warning(f"NVIDIA API rate limited (attempt {attempt + 1}), waiting before retry...")
+                import time
+                time.sleep(5 * (attempt + 1))  # 指數退避
+                continue
+            else:
+                logger.error(f"NVIDIA API error {response.status_code} (attempt {attempt + 1}): {response.text[:300]}")
+                if attempt < retries:
+                    import time
+                    time.sleep(2)  # 等待後重試
+                    continue
+                return None
+                
+        except requests.exceptions.Timeout:
+            logger.warning(f"NVIDIA API timeout on attempt {attempt + 1}/{retries + 1}")
+            if attempt < retries:
+                import time
+                time.sleep(3)
+                continue
+            logger.error("NVIDIA API failed after all retries due to timeout")
+            return None
+        except Exception as e:
+            logger.error(f"NVIDIA API call failed (attempt {attempt + 1}): {type(e).__name__}: {str(e)}")
+            if attempt < retries:
+                import time
+                time.sleep(2)
+                continue
+            import traceback
+            logger.error(traceback.format_exc())
+            return None
+    
+    logger.error("NVIDIA API failed after all retry attempts")
+    return None
+
 def generate_ai_summary(broker_name, rating, target_price, text):
-    """使用 OpenRouter API 生成真正的 AI 摘要"""
+    """使用 NVIDIA NIM API 生成真正的 AI 摘要"""
     try:
         prompt = f"""你是一位專業的金融分析師。請根據以下券商研報內容,提供簡潔专业的分析摘要。
 
@@ -535,32 +608,13 @@ def generate_ai_summary(broker_name, rating, target_price, text):
 
 格式要求:簡潔明瞭,使用要點式呈現。"""
 
-        headers = {
-            'Authorization': f'Bearer {OPENROUTER_API_KEY}',
-            'Content-Type': 'application/json',
-            'HTTP-Referer': os.environ.get('VERCEL_URL', ''),
-            'X-Title': 'Broker Report Analysis'
-        }
+        ai_content = call_nvidia_api(prompt, max_tokens=500, temperature=0.7)
         
-        payload = {
-            'model': 'qwen/qwen-2.5-72b-instruct',  # 使用 Qwen 2.5,支援繁體中文且免費
-            'messages': [
-                {'role': 'user', 'content': prompt}
-            ],
-            'max_tokens': 500,
-            'temperature': 0.7
-        }
-        
-        logger.debug("Calling OpenRouter API...")
-        response = requests.post(OPENROUTER_API_URL, headers=headers, json=payload, timeout=30)
-        
-        if response.status_code == 200:
-            result = response.json()
-            ai_content = result['choices'][0]['message']['content']
-            logger.info("AI summary generated successfully")
+        if ai_content:
+            logger.info("AI summary generated successfully via NVIDIA")
             return ai_content.strip()
         else:
-            logger.error(f"AI API error: {response.status_code} - {response.text[:200]}")
+            logger.warning("NVIDIA API returned empty, trying fallback")
             return None
     except Exception as e:
         logger.error(f"AI analysis failed: {str(e)}")
@@ -657,7 +711,7 @@ def ensure_traditional_chinese(data):
     return data
 
 def generate_ai_summary_with_fields(broker_name, rating, target_price, text, filename):
-    """使用 AI 提取完整字段並生成摘要"""
+    """使用 NVIDIA NIM API 提取完整字段並生成摘要"""
     try:
         prompt = f"""你是一位專業的金融分析師。請從以下券商研報中提取信息。
 
@@ -736,16 +790,9 @@ def generate_ai_summary_with_fields(broker_name, rating, target_price, text, fil
 - ai_summary 必須基於PDF實際內容，推算部分需註明
 - 只返回純JSON，不要markdown代碼塊或其他文字"""
 
-        headers = {
-            'Authorization': f'Bearer {OPENROUTER_API_KEY}',
-            'Content-Type': 'application/json',
-            'HTTP-Referer': os.environ.get('VERCEL_URL', ''),
-            'X-Title': 'Broker Report Analysis'
-        }
-        
-        # 檢查 API Key 是否設置
-        if not OPENROUTER_API_KEY or OPENROUTER_API_KEY.strip() == '':
-            logger.warning("OPENROUTER_API_KEY not set, using fallback")
+        # 檢查 NVIDIA API Key 是否設置
+        if not NVIDIA_API_KEY or NVIDIA_API_KEY.strip() == '':
+            logger.warning("NVIDIA_API_KEY not set, using fallback")
             fallback_summary = f"基於{broker_name}的研報分析：\n\n• 評級: {rating}\n• 目標價: HK${'{:.2f}'.format(target_price) if target_price else '未明確'}\n\n（註：AI服務未配置，顯示基本信息）"
             fallback_data = {
                 'release_date': '-',
@@ -759,22 +806,10 @@ def generate_ai_summary_with_fields(broker_name, rating, target_price, text, fil
             }
             return fallback_summary, fallback_data
         
-        payload = {
-            'model': 'qwen/qwen-2.5-7b-instruct',  # 使用免費模型
-            'messages': [
-                {'role': 'user', 'content': prompt}
-            ],
-            'max_tokens': 800,
-            'temperature': 0.3
-        }
+        ai_content = call_nvidia_api(prompt, max_tokens=800, temperature=0.3)
         
-        logger.debug("Calling OpenRouter API to extract fields...")
-        response = requests.post(OPENROUTER_API_URL, headers=headers, json=payload, timeout=30)
-        
-        if response.status_code == 200:
-            result = response.json()
-            ai_content = result['choices'][0]['message']['content'].strip()
-            logger.debug(f"Raw AI response: {ai_content[:200]}")
+        if ai_content:
+            logger.debug(f"Raw NVIDIA response: {ai_content[:200]}")
             
             # 嘗試解析 JSON
             try:
@@ -782,7 +817,7 @@ def generate_ai_summary_with_fields(broker_name, rating, target_price, text, fil
                 ai_content_clean = ai_content.replace('```json', '').replace('```', '').strip()
                 extracted_data = json.loads(ai_content_clean)
                 
-                logger.info("Fields extracted successfully")
+                logger.info("Fields extracted successfully via NVIDIA")
                 
                 # 強制檢查並修正語言：確保所有字段都是繁體中文
                 extracted_data = ensure_traditional_chinese(extracted_data)
@@ -793,7 +828,7 @@ def generate_ai_summary_with_fields(broker_name, rating, target_price, text, fil
                 # 回退到舊方法
                 return ai_content, {}
         else:
-            logger.error(f"API error {response.status_code}, using fallback")
+            logger.error("NVIDIA API returned empty, using fallback")
             # API失敗時返回基本數據
             fallback_summary = f"基於{broker_name}的研報分析：\n\n• 評級: {rating}\n• 目標價: HK${target_price:.2f}\n\n（註：AI分析服務暫時不可用，顯示基本信息）"
             fallback_data = {
