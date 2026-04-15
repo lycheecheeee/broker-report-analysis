@@ -252,9 +252,15 @@ def ensure_db_initialized():
     global _db_initialized
     if not _db_initialized:
         try:
-            init_db()
+            if DB_MODE == 'supabase':
+                # Supabase 模式：測試連接
+                result = supabase_request('GET', 'analysis_results', query_params='limit=1')
+                print(f"[DB] ✅ Supabase connected (mode: {DB_MODE})")
+            else:
+                # SQLite/內存模式
+                init_db()
+                print(f"[DB] ✅ Database initialized (mode: {DB_MODE})")
             _db_initialized = True
-            print("[DB] ✅ Database initialized")
         except Exception as e:
             print(f"[DB] ⚠️ Initialization error: {e}")
             # 即使失敗也標記為已初始化，避免重複嘗試
@@ -553,7 +559,7 @@ def generate_ai_summary(broker_name, rating, target_price, text):
         headers = {
             'Authorization': f'Bearer {OPENROUTER_API_KEY}',
             'Content-Type': 'application/json',
-            'HTTP-Referer': 'http://localhost:62190',
+            'HTTP-Referer': os.environ.get('VERCEL_URL', 'http://localhost:62190'),
             'X-Title': 'Broker Report Analysis'
         }
         
@@ -754,7 +760,7 @@ def generate_ai_summary_with_fields(broker_name, rating, target_price, text, fil
         headers = {
             'Authorization': f'Bearer {OPENROUTER_API_KEY}',
             'Content-Type': 'application/json',
-            'HTTP-Referer': 'http://localhost:62190',
+            'HTTP-Referer': os.environ.get('VERCEL_URL', 'http://localhost:62190'),
             'X-Title': 'Broker Report Analysis'
         }
         
