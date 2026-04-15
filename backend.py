@@ -1024,26 +1024,22 @@ def get_results():
     """獲取分析結果 - 公開訪問"""
     user_id = 1  # 公開工具，固定用戶ID
     
-    conn = sqlite3.connect(DATABASE)
-    c = conn.cursor()
-    c.execute('''SELECT id, pdf_filename, broker_name, rating, target_price, 
-                        current_price, upside_potential, ai_summary, created_at
-                 FROM analysis_results 
-                 WHERE user_id = ?
-                 ORDER BY created_at DESC''', (user_id,))
-    results = c.fetchall()
-    conn.close()
+    # 從 Supabase 獲取數據
+    results = supabase_request('GET', 'analysis_results', query_params=f'user_id=eq.{user_id}&order=created_at.desc')
+    
+    if not results:
+        return jsonify([])
     
     return jsonify([{
-        'id': r[0],
-        'pdf_filename': r[1],
-        'broker_name': r[2],
-        'rating': r[3],
-        'target_price': r[4],
-        'current_price': r[5],
-        'upside_potential': r[6],
-        'ai_summary': r[7],
-        'created_at': r[8]
+        'id': r.get('id'),
+        'pdf_filename': r.get('pdf_filename'),
+        'broker_name': r.get('broker_name'),
+        'rating': r.get('rating'),
+        'target_price': r.get('target_price'),
+        'current_price': r.get('current_price'),
+        'upside_potential': r.get('upside_potential'),
+        'ai_summary': r.get('ai_summary'),
+        'created_at': r.get('created_at')
     } for r in results])
 
 @app.route('/broker_3quilm/api/feedback', methods=['POST'])
@@ -1057,13 +1053,16 @@ def submit_feedback():
     comment = data.get('comment', '')
     suggestions = data.get('suggestions', '')
     
-    conn = sqlite3.connect(DATABASE)
-    c = conn.cursor()
-    c.execute('''INSERT INTO feedback (user_id, analysis_id, rating, comment, suggestions)
-                 VALUES (?, ?, ?, ?, ?)''',
-             (user_id, analysis_id, rating, comment, suggestions))
-    conn.commit()
-    conn.close()
+    feedback_data = {
+        'user_id': user_id,
+        'analysis_id': analysis_id,
+        'rating': rating,
+        'comment': comment,
+        'suggestions': suggestions,
+        'created_at': datetime.utcnow().isoformat()
+    }
+    
+    result = supabase_request('POST', 'feedback', data=feedback_data)
     
     return jsonify({'message': '感謝您的反饋!'})
 
@@ -1174,17 +1173,10 @@ def scan_folder():
             filepath = os.path.join(folder_path, pdf_file)
             
             # ========== 去重檢查 ==========
-            conn_check = sqlite3.connect(DATABASE)
-            cursor_check = conn_check.cursor()
-            cursor_check.execute("""
-                SELECT id FROM analysis_results 
-                WHERE pdf_filename = ? AND DATE(created_at) = DATE('now')
-                LIMIT 1
-            """, (pdf_file,))
-            existing = cursor_check.fetchone()
-            conn_check.close()
+            existing_results = supabase_request('GET', 'analysis_results', 
+                                               query_params=f'pdf_filename=eq.{pdf_file}')
             
-            if existing:
+            if existing_results and len(existing_results) > 0:
                 logger.info(f"Skipping duplicate: {pdf_file}")
                 skipped_count += 1
                 continue
@@ -1214,24 +1206,36 @@ def scan_folder():
                 if not ai_summary:
                     ai_summary = f"基於{broker_name}的研報分析:\n\n"
                     ai_summary += f"• 評級: {rating}\n"
-                    ai_summary += f"• 目標價: HK${target_price:.2f}\n" if target_price else "• 目標價: 未明確\n"
-                    ai_summary += f"• 上行空間: {upside}%\n" if upside else ""
+                    if target_price:
+                        ai_summary += f"• 目標價: HK${target_price:.2f}\n"
+                    else:
+                        ai_summary += "• 目標價: 未明確\n"
+                    if upside:
+                        ai_summary += f"• 上行空間: {upside}%\n"
                     ai_summary += f"\n核心觀點摘要:\n{text[:500]}..."
                 
-                conn = sqlite3.connect(DATABASE)
-                c = conn.cursor()
-                c.execute('''INSERT INTO analysis_results 
-                             (user_id, pdf_filename, broker_name, rating, target_price, 
-                              current_price, upside_potential, ai_summary, prompt_used,
-                              company_name, stock_code, key_points, risks,
-                              chart_path, audio_path, is_public)
-                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-                         (1, pdf_file, broker_name, rating, target_price,
-                          current_price, upside, ai_summary, '',
-                          company_name, stock_code, key_points, risks,
-                          None, None, 1))
-                conn.commit()
-                conn.close()
+                # 保存到 Supabase
+                supabase_data = {
+                    'user_id': 1,
+                    'pdf_filename': pdf_file,
+                    'broker_name': broker_name,
+                    'rating': rating,
+                    'target_price': target_price,
+                    'current_price': current_price,
+                    'upside_potential': upside,
+                    'ai_summary': ai_summary,
+                    'prompt_used': '',
+                    'company_name': company_name,
+                    'stock_code': stock_code,
+                    'key_points': key_points,
+                    'risks': risks,
+                    'chart_path': None,
+                    'audio_path': None,
+                    'is_public': 1,
+                    'created_at': datetime.utcnow().isoformat()
+                }
+                
+                result = supabase_request('POST', 'analysis_results', data=supabase_data)
                 analyzed_count += 1
         except Exception as e:
             logger.error(f"Failed to analyze {pdf_file}: {e}")
@@ -1356,8 +1360,12 @@ def analyze_existing_pdf():
         if not ai_summary:
             ai_summary = f"基於{broker_name}的研報分析:\n\n"
             ai_summary += f"• 評級: {rating}\n"
-            ai_summary += f"• 目標價: HK${target_price:.2f}\n" if target_price else "• 目標價: 未明確\n"
-            ai_summary += f"• 上行空間: {upside}%\n" if upside else ""
+            if target_price:
+                ai_summary += f"• 目標價: HK${target_price:.2f}\n"
+            else:
+                ai_summary += "• 目標價: 未明確\n"
+            if upside:
+                ai_summary += f"• 上行空間: {upside}%\n"
             ai_summary += f"\n核心觀點摘要:\n{text[:500]}..."
         
         # 如果AI提取成功，使用AI的結果；否則使用默認值
@@ -1368,18 +1376,22 @@ def analyze_existing_pdf():
         final_indexes = extracted_fields.get('indexes', '-') if extracted_fields else '-'
         final_investment_horizon = extracted_fields.get('investment_horizon', '-') if extracted_fields else '-'
         
-        # 保存到數據庫
-        conn = sqlite3.connect(DATABASE)
-        c = conn.cursor()
-        c.execute('''INSERT INTO analysis_results 
-                     (user_id, pdf_filename, broker_name, rating, target_price, 
-                      current_price, upside_potential, ai_summary, prompt_used)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-                 (user_id, filename, broker_name, rating, target_price,
-                  current_price, upside, ai_summary, ''))
-        analysis_id = c.lastrowid
-        conn.commit()
-        conn.close()
+        # 保存到 Supabase
+        supabase_data = {
+            'user_id': user_id,
+            'pdf_filename': filename,
+            'broker_name': broker_name,
+            'rating': rating,
+            'target_price': target_price,
+            'current_price': current_price,
+            'upside_potential': upside,
+            'ai_summary': ai_summary,
+            'prompt_used': '',
+            'created_at': datetime.utcnow().isoformat()
+        }
+        
+        result = supabase_request('POST', 'analysis_results', data=supabase_data)
+        analysis_id = result[0]['id'] if result and len(result) > 0 else None
         
         # 計算數據匯總統計
         summary_stats = {
@@ -1421,72 +1433,74 @@ def analyze_existing_pdf():
 def get_chart_data():
     """獲取圖表數據（評級分佈、目標價統計等）"""
     try:
-        conn = sqlite3.connect(DATABASE)
-        cursor = conn.cursor()
+        # 從 Supabase 獲取所有分析結果
+        all_results = supabase_request('GET', 'analysis_results')
+        
+        if not all_results:
+            return jsonify({
+                'rating_distribution': [],
+                'price_statistics': {'total_reports': 0, 'average_price': 0, 'min_price': 0, 'max_price': 0},
+                'broker_coverage': [],
+                'trend_data': []
+            })
         
         # 1. 評級分佈
-        cursor.execute("""
-            SELECT rating, COUNT(*) as count 
-            FROM analysis_results 
-            WHERE rating IS NOT NULL AND rating != '' AND rating != '-'
-            GROUP BY rating 
-            ORDER BY count DESC
-        """)
-        rating_data = cursor.fetchall()
+        rating_count = {}
+        for r in all_results:
+            rating = r.get('rating')
+            if rating and rating != '' and rating != '-':
+                rating_count[rating] = rating_count.get(rating, 0) + 1
+        
+        rating_data = sorted(rating_count.items(), key=lambda x: x[1], reverse=True)
         
         # 2. 目標價統計
-        cursor.execute("""
-            SELECT 
-                COUNT(*) as total,
-                AVG(target_price) as avg_price,
-                MIN(target_price) as min_price,
-                MAX(target_price) as max_price
-            FROM analysis_results 
-            WHERE target_price IS NOT NULL AND target_price > 0
-        """)
-        price_stats = cursor.fetchone()
+        target_prices = [r.get('target_price') for r in all_results if r.get('target_price') and r.get('target_price') > 0]
+        price_stats = {
+            'total_reports': len(target_prices),
+            'average_price': round(sum(target_prices) / len(target_prices), 2) if target_prices else 0,
+            'min_price': round(min(target_prices), 2) if target_prices else 0,
+            'max_price': round(max(target_prices), 2) if target_prices else 0
+        }
         
         # 3. 券商覆蓋數量
-        cursor.execute("""
-            SELECT broker_name, COUNT(*) as count 
-            FROM analysis_results 
-            WHERE broker_name IS NOT NULL AND broker_name != ''
-            GROUP BY broker_name 
-            ORDER BY count DESC
-            LIMIT 10
-        """)
-        broker_data = cursor.fetchall()
+        broker_count = {}
+        for r in all_results:
+            broker = r.get('broker_name')
+            if broker and broker != '':
+                broker_count[broker] = broker_count.get(broker, 0) + 1
+        
+        broker_data = sorted(broker_count.items(), key=lambda x: x[1], reverse=True)[:10]
         
         # 4. 時間趨勢（最近 30 天）
-        cursor.execute("""
-            SELECT DATE(created_at) as date, COUNT(*) as count
-            FROM analysis_results
-            WHERE created_at >= DATE('now', '-30 days')
-            GROUP BY DATE(created_at)
-            ORDER BY date
-        """)
-        trend_data = cursor.fetchall()
+        from datetime import datetime, timedelta
+        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        trend_count = {}
+        for r in all_results:
+            created_at = r.get('created_at')
+            if created_at:
+                try:
+                    date_obj = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                    if date_obj >= thirty_days_ago:
+                        date_str = date_obj.strftime('%Y-%m-%d')
+                        trend_count[date_str] = trend_count.get(date_str, 0) + 1
+                except:
+                    pass
         
-        conn.close()
+        trend_data = sorted(trend_count.items())
         
         return jsonify({
             'rating_distribution': [
-                {'rating': row[0], 'count': row[1]} 
-                for row in rating_data
+                {'rating': rating, 'count': count} 
+                for rating, count in rating_data
             ],
-            'price_statistics': {
-                'total_reports': price_stats[0] if price_stats else 0,
-                'average_price': round(price_stats[1], 2) if price_stats and price_stats[1] else 0,
-                'min_price': round(price_stats[2], 2) if price_stats and price_stats[2] else 0,
-                'max_price': round(price_stats[3], 2) if price_stats and price_stats[3] else 0
-            },
+            'price_statistics': price_stats,
             'broker_coverage': [
-                {'broker': row[0], 'count': row[1]} 
-                for row in broker_data
+                {'broker': broker, 'count': count} 
+                for broker, count in broker_data
             ],
             'trend_data': [
-                {'date': row[0], 'count': row[1]} 
-                for row in trend_data
+                {'date': date, 'count': count} 
+                for date, count in trend_data
             ]
         })
         
