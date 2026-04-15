@@ -320,7 +320,7 @@ def parse_pdf(pdf_path):
             logger.debug(f"PDF pages: {len(pdf_reader.pages)}")
             
             text = ''
-            for i, page in enumerate(pdf_reader.pages[:5]):  # 只讀前5頁
+            for i, page in enumerate(pdf_reader.pages[:2]):  # 只讀前2頁（優化性能）
                 try:
                     page_text = page.extract_text()
                     if page_text:
@@ -711,111 +711,40 @@ def ensure_traditional_chinese(data):
     return data
 
 def generate_ai_summary_with_fields(broker_name, rating, target_price, text, filename):
-    """使用 NVIDIA NIM API 提取完整字段並生成摘要（強化推理版）"""
+    """使用 NVIDIA NIM API 提取完整字段並生成摘要（優化版 - 減少 token）"""
     try:
-        prompt = f"""你是一位資深金融分析師，擅長從券商研報中提取關鍵信息並進行智能推斷。
+        prompt = f"""你是資深金融分析師。從研報提取關鍵信息，所有輸出必須100%繁體中文。
 
-【核心原則 - 絕對遵守】
-⚠️ **所有輸出必須100%使用繁體中文** ⚠️
-- 絕對禁止使用英文（包括標題、內容、標點符號）
-- 若遇到英文專有名詞，必須翻譯為繁體中文
-- 日期格式統一為：YYYY-MM-DD
-- 數字可以使用阿拉伯數字
+【智能推斷規則】
+若PDF未提及某些信息，根據以下規則推斷（嚴禁留空）：
+1. stock_name: 從文件名/業務推斷（700→騰訊控股，9988→阿里巴巴）
+2. industry: 基於業務標籤化（騰訊→互聯網/社交媒體/遊戲）
+3. sub_industry: 細分領域（在線遊戲、社交網絡等）
+4. indexes: 大型股→恆生指數，科技股→恆生科技指數
+5. investment_horizon: 默認「12個月」
+6. release_date: 從PDF提取，否則用當前日期
 
-【智能推斷策略 - 最重要】
-🎯 **你的任務是盡可能填充所有字段，嚴禁留空或返回「-」**
+【輸入】
+文件: {filename}
+券商: {broker_name} | 評級: {rating} | 目標價: HK${'{:.2f}'.format(target_price) if target_price else '未明確'}
 
-當 PDF 中未明確提及某些信息時，你必須根據以下線索進行**合理推斷**：
+內容片段:
+{text[:1500]}
 
-1. **股票名稱 (stock_name)**：
-   - 優先級 1：從 PDF 標題、公司名稱提取
-   - 優先級 2：從文件名推斷（例如：BOA-700.pdf → 「騰訊控股」，CICC-9988.pdf → 「阿里巴巴」）
-   - 優先級 3：從業務描述推斷（如提到「社交媒體平台」、「遊戲業務」→ 騰訊控股）
-   - 常見代碼映射表：
-     * 700 / 0700.HK → 騰訊控股
-     * 9988 / 9988.HK → 阿里巴巴
-     * 9618 / 9618.HK → 京東集團
-     * 1810 / 1810.HK → 小米集團
-     * 3690 / 3690.HK → 美團
-     * 1211 / 1211.HK → 比亞迪股份
-
-2. **行業分類 (industry)**：
-   - 基於公司業務進行多維度標籤化
-   - 示例：
-     * 騰訊 → 「互聯網/社交媒體/遊戲/金融科技」
-     * 阿里巴巴 → 「電商/雲端計算/物流」
-     * 美團 → 「本地生活服務/外賣配送/到店業務」
-   - 允許多個標籤用「/」分隔
-
-3. **子行業 (sub_industry)**：
-   - 更細分的業務領域
-   - 示例：在線遊戲、社交網絡、數字廣告、雲端服務、支付平台、電子商務等
-
-4. **相關指數 (indexes)**：
-   - 優先級 1：從 PDF 中提取提及的指數
-   - 優先級 2：根據公司規模和行業推斷：
-     * 大型藍籌股 → 「恆生指數」
-     * 科技股 → 「恆生科技指數」
-     * 中國企業 → 「恆生中國企業指數」
-     * 紅籌股 → 「恆生紅籌指數」
-   - 允許多個指數用「/」分隔
-
-5. **投資期限 (investment_horizon)**：
-   - 優先級 1：從 PDF 中提取（如「12個月目標價」）
-   - 優先級 2：默認推斷為「12個月」（券商評級標準做法）
-   - 其他常見值：「6個月」、「18個月」、「長期」
-
-6. **發布日期 (release_date)**：
-   - 優先級 1：從 PDF 中提取明確日期
-   - 優先級 2：從文件名推斷（如有日期信息）
-   - 優先級 3：使用當前日期作為最後手段
-
-【置信度評分標準】
-- 0.9-1.0：PDF 中明確提及，高度確信
-- 0.7-0.89：基於強上下文推斷，較高確信
-- 0.5-0.69：基於弱線索推斷，中等確信
-- < 0.5：純猜測，低確信（應避免）
-
-【輸入信息】
-文件名: {filename}
-券商: {broker_name}
-評級: {rating}
-目標價: HK${'{:.2f}'.format(target_price) if target_price else '未明確'}
-
-研報內容（前 3000 字符）:
-{text[:3000]}
-
-【輸出格式 - 嚴格遵守】
-你必須返回一個**純淨的 JSON 對象**（不要包含 markdown 代碼塊標記如 \`\`\`json），結構如下：
-
+【輸出格式 - 純淨JSON，無markdown標記】
 {{
-  "release_date": "YYYY-MM-DD 格式，若無法確定則使用當前日期",
-  "stock_name": "完整的股票中文名稱，嚴禁留空",
-  "industry": "行業分類標籤（用/分隔多個）",
-  "sub_industry": "子行業分類",
-  "indexes": "相關指數（用/分隔多個）",
-  "investment_horizon": "投資期限（如：12個月）",
-  "inferred_fields": ["列出所有推斷字段的名称，如 ['stock_name', 'indexes']"],
-  "confidence_scores": {{
-    "release_date": 0.9,
-    "stock_name": 0.95,
-    "industry": 0.85,
-    "sub_industry": 0.8,
-    "indexes": 0.75,
-    "investment_horizon": 0.9
-  }},
-  "ai_summary": "專業分析摘要（繁體中文），包含：\n\n【核心投資觀點】\n簡述券商的核心邏輯和看好原因\n\n【主要風險提示】\n列出關鍵風險因素\n\n【建議操作策略】\n給出具體操作建議\n\n若有推斷數據，需在括號中註明『推斷』及置信度。要求：簡潔專業，要點式呈現，總長度控制在 300 字以內"
+  "release_date": "YYYY-MM-DD",
+  "stock_name": "完整中文名稱",
+  "industry": "行業標籤",
+  "sub_industry": "子行業",
+  "indexes": "相關指數",
+  "investment_horizon": "12個月",
+  "inferred_fields": ["推斷字段列表"],
+  "confidence_scores": {{"stock_name": 0.9, "industry": 0.8}},
+  "ai_summary": "【核心觀點】簡述邏輯\n\n【風險提示】關鍵風險\n\n【操作建議】具體建議（300字內，繁體中文）"
 }}
 
-【最終檢查清單】
-✅ 所有字段都已填充，沒有任何「-」或空值
-✅ stock_name 是完整的中文公司名稱
-✅ industry 和 indexes 使用了合理的推斷
-✅ ai_summary 完全使用繁體中文
-✅ JSON 格式正確，可以直接解析
-✅ 沒有 markdown 代碼塊標記
-
-現在，請開始分析並返回 JSON："""
+✅ 確保：所有字段已填充、無英文、JSON格式正確"""
 
         # 檢查 NVIDIA API Key 是否設置
         if not NVIDIA_API_KEY or NVIDIA_API_KEY.strip() == '':
@@ -1617,7 +1546,7 @@ def analyze_existing_pdf():
         final_indexes = extracted_fields.get('indexes', '-') if extracted_fields else '-'
         final_investment_horizon = extracted_fields.get('investment_horizon', '-') if extracted_fields else '-'
         
-        # 保存到 Supabase（先檢查是否已存在，避免重複記錄）
+        # 準備 Supabase 數據
         supabase_data = {
             'user_id': user_id,
             'pdf_filename': filename,
@@ -1637,54 +1566,61 @@ def analyze_existing_pdf():
             'created_at': datetime.utcnow().isoformat()
         }
         
-        logger.info(f"Saving to Supabase: {filename}")
+        # 保存到 Supabase（異步處理，不阻塞主流程）
+        import threading
         
-        # Step 1: 檢查是否已存在相同 pdf_filename 的記錄
-        check_url = f"{SUPABASE_URL}/rest/v1/analysis_results?pdf_filename=eq.{filename}&select=id"
-        check_headers = {
-            'apikey': SUPABASE_KEY,
-            'Authorization': f'Bearer {SUPABASE_KEY}',
-            'Content-Type': 'application/json'
-        }
-        
-        try:
-            check_response = requests.get(check_url, headers=check_headers, timeout=10)
-            existing_records = check_response.json() if check_response.status_code == 200 else []
-            
-            if existing_records and len(existing_records) > 0:
-                # Step 2a: 如果已存在，執行 UPDATE 操作
-                existing_id = existing_records[0]['id']
-                logger.info(f"Record exists (ID: {existing_id}), updating...")
+        def save_to_supabase_async():
+            """背景線程保存數據到 Supabase"""
+            try:
+                logger.info(f"[Async] Saving to Supabase: {filename}")
                 
-                update_url = f"{SUPABASE_URL}/rest/v1/analysis_results?id=eq.{existing_id}"
-                update_response = requests.patch(
-                    update_url,
-                    headers=check_headers,
-                    json=supabase_data,
-                    timeout=10
-                )
+                # Step 1: 檢查是否已存在相同 pdf_filename 的記錄
+                check_url = f"{SUPABASE_URL}/rest/v1/analysis_results?pdf_filename=eq.{filename}&select=id"
+                check_headers = {
+                    'apikey': SUPABASE_KEY,
+                    'Authorization': f'Bearer {SUPABASE_KEY}',
+                    'Content-Type': 'application/json'
+                }
                 
-                if update_response.status_code in [200, 204]:
-                    analysis_id = existing_id
-                    logger.info(f"Successfully updated record ID: {analysis_id}")
-                else:
-                    analysis_id = None
-                    logger.warning(f"Failed to update record: HTTP {update_response.status_code}")
-            else:
-                # Step 2b: 如果不存在，執行 INSERT 操作
-                logger.info("No existing record found, creating new record...")
-                result = supabase_request('POST', 'analysis_results', data=supabase_data)
+                check_response = requests.get(check_url, headers=check_headers, timeout=5)
+                existing_records = check_response.json() if check_response.status_code == 200 else []
                 
-                if result and len(result) > 0:
-                    analysis_id = result[0]['id']
-                    logger.info(f"Successfully created new record, ID: {analysis_id}")
-                else:
-                    analysis_id = None
-                    logger.warning(f"Failed to create new record for {filename}. Result: {result}")
+                if existing_records and len(existing_records) > 0:
+                    # Step 2a: 如果已存在，執行 UPDATE 操作
+                    existing_id = existing_records[0]['id']
+                    logger.info(f"[Async] Record exists (ID: {existing_id}), updating...")
                     
-        except Exception as e:
-            analysis_id = None
-            logger.error(f"Error checking/updating record: {str(e)}")
+                    update_url = f"{SUPABASE_URL}/rest/v1/analysis_results?id=eq.{existing_id}"
+                    update_response = requests.patch(
+                        update_url,
+                        headers=check_headers,
+                        json=supabase_data,
+                        timeout=5
+                    )
+                    
+                    if update_response.status_code in [200, 204]:
+                        logger.info(f"[Async] Successfully updated record ID: {existing_id}")
+                    else:
+                        logger.warning(f"[Async] Failed to update record: HTTP {update_response.status_code}")
+                else:
+                    # Step 2b: 如果不存在，執行 INSERT 操作
+                    logger.info("[Async] No existing record found, creating new record...")
+                    result = supabase_request('POST', 'analysis_results', data=supabase_data)
+                    
+                    if result and len(result) > 0:
+                        logger.info(f"[Async] Successfully created new record, ID: {result[0]['id']}")
+                    else:
+                        logger.warning(f"[Async] Failed to create new record for {filename}")
+                        
+            except Exception as e:
+                logger.error(f"[Async] Error saving to Supabase: {str(e)}")
+        
+        # 啟動背景線程（daemon=True 確保主線程退出時自動終止）
+        save_thread = threading.Thread(target=save_to_supabase_async, daemon=True)
+        save_thread.start()
+        
+        # 立即返回 analysis_id（實際保存喺背景進行）
+        analysis_id = None  # 背景保存，唔等待結果
         
         # 計算數據匯總統計
         summary_stats = {
