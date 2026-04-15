@@ -712,6 +712,52 @@
             <p class="subtitle">百搭PDF解析器 | 支援任何券商報告/財務文件 | 自動生成專業Dashboard</p>
         </div>
         
+        <!-- API Status Button -->
+        <div style="margin-bottom:20px; text-align:right;">
+            <button onclick="checkAPIStatus()" id="api-status-btn" style="padding:10px 20px; background:linear-gradient(135deg, #667eea, #764ba2); color:white; border:none; border-radius:12px; cursor:pointer; font-size:14px; font-weight:600; box-shadow:0 4px 12px rgba(102,126,234,0.3); transition:all 0.3s ease; display:inline-flex; align-items:center; gap:8px;"
+                    onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(102,126,234,0.4)'"
+                    onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(102,126,234,0.3)'">
+                <svg style="width:18px;height:18px;fill:white;" viewBox="0 0 24 24">
+                    <path d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6M12,8A4,4 0 0,0 8,12A4,4 0 0,0 12,16A4,4 0 0,0 16,12A4,4 0 0,0 12,8Z"/>
+                </svg>
+                <span id="api-status-text">檢查 API 狀態</span>
+            </button>
+        </div>
+        
+        <!-- API Status Modal -->
+        <div id="api-status-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); backdrop-filter:blur(5px); z-index:10000; justify-content:center; align-items:center;">
+            <div style="background:white; border-radius:20px; padding:30px; max-width:700px; width:90%; max-height:80vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,0.3); animation:modalSlideIn 0.3s ease-out;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                    <h2 style="color:#2d3748; font-size:24px; margin:0;">
+                        <svg style="width:28px;height:28px;vertical-align:middle;margin-right:10px;fill:#667eea;" viewBox="0 0 24 24">
+                            <path d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6M12,8A4,4 0 0,0 8,12A4,4 0 0,0 12,16A4,4 0 0,0 16,12A4,4 0 0,0 12,8Z"/>
+                        </svg>
+                        API 狀態檢測
+                    </h2>
+                    <button onclick="closeAPIStatusModal()" style="background:none; border:none; font-size:28px; color:#718096; cursor:pointer; padding:0; width:40px; height:40px; display:flex; align-items:center; justify-content:center; border-radius:50%; transition:all 0.2s;"
+                            onmouseover="this.style.background='#f7fafc'; this.style.color='#2d3748'"
+                            onmouseout="this.style.background='none'; this.style.color='#718096'">&times;</button>
+                </div>
+                
+                <div id="api-status-content">
+                    <div style="text-align:center; padding:40px; color:#718096;">
+                        <svg style="width:48px;height:48px;animation:spin 1s linear infinite;" viewBox="0 0 24 24">
+                            <style>@keyframes spin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }</style>
+                            <path fill="#667eea" d="M12,4V2A10,10 0 0,0 2,12H4A8,8 0 0,1 12,4Z"/>
+                        </svg>
+                        <p style="margin-top:15px; font-size:16px;">正在檢測 API 連接狀態...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <style>
+            @keyframes modalSlideIn {
+                from { opacity:0; transform:translateY(-30px) scale(0.95); }
+                to { opacity:1; transform:translateY(0) scale(1); }
+            }
+        </style>
+        
         <!-- Navigation Tabs -->
         <div style="margin-bottom:20px; display:flex; gap:10px; flex-wrap:wrap;">
             <button onclick="showTab('analysis')" id="tab-analysis" class="nav-tab active">
@@ -2262,5 +2308,200 @@
                 © 2026 Broker Report Analysis Platform. All rights reserved.
             </div>
         </footer>
+        
+        <script>
+        // ==================== API Status Check ====================
+        async function checkAPIStatus() {
+            const modal = document.getElementById('api-status-modal');
+            const content = document.getElementById('api-status-content');
+            const btnText = document.getElementById('api-status-text');
+            
+            // Show modal
+            modal.style.display = 'flex';
+            btnText.textContent = '檢測中...';
+            
+            // Show loading state
+            content.innerHTML = `
+                <div style="text-align:center; padding:40px; color:#718096;">
+                    <svg style="width:48px;height:48px;animation:spin 1s linear infinite;" viewBox="0 0 24 24">
+                        <style>@keyframes spin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }</style>
+                        <path fill="#667eea" d="M12,4V2A10,10 0 0,0 2,12H4A8,8 0 0,1 12,4Z"/>
+                    </svg>
+                    <p style="margin-top:15px; font-size:16px;">正在檢測 API 連接狀態...</p>
+                </div>
+            `;
+            
+            try {
+                const response = await fetch('/broker_3quilm/api/api-status');
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    displayAPIStatus(data);
+                } else {
+                    content.innerHTML = `
+                        <div style="text-align:center; padding:40px; color:#e53e3e;">
+                            <svg style="width:48px;height:48px;" viewBox="0 0 24 24">
+                                <path fill="#e53e3e" d="M12,2C17.53,2 22,6.47 22,12C22,17.53 17.53,22 12,22C6.47,22 2,17.53 2,12C2,6.47 6.47,2 12,2M12,4C10.14,4 8.42,4.54 6.97,5.47L10.09,8.59C10.61,8.22 11.27,8 12,8A4,4 0 0,1 16,12A4,4 0 0,1 12,16C11.27,16 10.61,15.78 10.09,15.41L6.97,18.53C8.42,19.46 10.14,20 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4Z"/>
+                            </svg>
+                            <p style="margin-top:15px; font-size:16px;">檢測失敗：${data.error || '未知錯誤'}</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                content.innerHTML = `
+                    <div style="text-align:center; padding:40px; color:#e53e3e;">
+                        <svg style="width:48px;height:48px;" viewBox="0 0 24 24">
+                            <path fill="#e53e3e" d="M12,2C17.53,2 22,6.47 22,12C22,17.53 17.53,22 12,22C6.47,22 2,17.53 2,12C2,6.47 6.47,2 12,2M12,4C10.14,4 8.42,4.54 6.97,5.47L10.09,8.59C10.61,8.22 11.27,8 12,8A4,4 0 0,1 16,12A4,4 0 0,1 12,16C11.27,16 10.61,15.78 10.09,15.41L6.97,18.53C8.42,19.46 10.14,20 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4Z"/>
+                        </svg>
+                        <p style="margin-top:15px; font-size:16px;">網絡錯誤：${error.message}</p>
+                    </div>
+                `;
+            } finally {
+                btnText.textContent = '檢查 API 狀態';
+            }
+        }
+        
+        function displayAPIStatus(data) {
+            const content = document.getElementById('api-status-content');
+            const apis = data.apis;
+            
+            // Helper function to get status icon and color
+            function getStatusInfo(status) {
+                switch(status) {
+                    case 'connected':
+                        return { icon: '✅', color: '#10b981', text: '已連接' };
+                    case 'error':
+                        return { icon: '⚠️', color: '#f59e0b', text: '錯誤' };
+                    case 'failed':
+                        return { icon: '❌', color: '#e53e3e', text: '失敗' };
+                    case 'not_configured':
+                        return { icon: '⚙️', color: '#718096', text: '未配置' };
+                    default:
+                        return { icon: '❓', color: '#718096', text: '未知' };
+                }
+            }
+            
+            // Format response time
+            function formatResponseTime(ms) {
+                if (!ms) return '-';
+                if (ms < 1000) return `${ms.toFixed(0)} ms`;
+                return `${(ms / 1000).toFixed(2)} s`;
+            }
+            
+            const nvidia = apis.nvidia;
+            const openrouter = apis.openrouter;
+            const supabase = apis.supabase;
+            
+            const nvidiaStatus = getStatusInfo(nvidia.status);
+            const openrouterStatus = getStatusInfo(openrouter.status);
+            const supabaseStatus = getStatusInfo(supabase.status);
+            
+            content.innerHTML = `
+                <div style="margin-bottom:20px;">
+                    <div style="background:linear-gradient(135deg, #667eea, #764ba2); color:white; padding:15px 20px; border-radius:12px; margin-bottom:20px;">
+                        <div style="font-size:14px; opacity:0.9; margin-bottom:5px;">主要使用 API</div>
+                        <div style="font-size:20px; font-weight:bold;">${data.primary_api}</div>
+                    </div>
+                </div>
+                
+                <div style="display:grid; gap:15px;">
+                    <!-- NVIDIA API -->
+                    <div style="border:2px solid ${nvidiaStatus.color}; border-radius:12px; padding:20px; background:${nvidiaStatus.color}08;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                            <h3 style="margin:0; color:#2d3748; font-size:18px;">${nvidia.name}</h3>
+                            <span style="background:${nvidiaStatus.color}; color:white; padding:4px 12px; border-radius:20px; font-size:13px; font-weight:600;">
+                                ${nvidiaStatus.icon} ${nvidiaStatus.text}
+                            </span>
+                        </div>
+                        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; font-size:14px;">
+                            <div>
+                                <div style="color:#718096; margin-bottom:3px;">模型</div>
+                                <div style="color:#2d3748; font-weight:600;">${nvidia.model || '-'}</div>
+                            </div>
+                            <div>
+                                <div style="color:#718096; margin-bottom:3px;">響應時間</div>
+                                <div style="color:#2d3748; font-weight:600;">${formatResponseTime(nvidia.response_time_ms)}</div>
+                            </div>
+                            ${nvidia.error ? `
+                            <div style="grid-column:1/-1;">
+                                <div style="color:#718096; margin-bottom:3px;">錯誤訊息</div>
+                                <div style="color:#e53e3e; font-size:13px;">${nvidia.error}</div>
+                            </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                    
+                    <!-- OpenRouter API -->
+                    <div style="border:2px solid ${openrouterStatus.color}; border-radius:12px; padding:20px; background:${openrouterStatus.color}08;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                            <h3 style="margin:0; color:#2d3748; font-size:18px;">${openrouter.name}</h3>
+                            <span style="background:${openrouterStatus.color}; color:white; padding:4px 12px; border-radius:20px; font-size:13px; font-weight:600;">
+                                ${openrouterStatus.icon} ${openrouterStatus.text}
+                            </span>
+                        </div>
+                        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; font-size:14px;">
+                            <div>
+                                <div style="color:#718096; margin-bottom:3px;">響應時間</div>
+                                <div style="color:#2d3748; font-weight:600;">${formatResponseTime(openrouter.response_time_ms)}</div>
+                            </div>
+                            ${openrouter.error ? `
+                            <div style="grid-column:1/-1;">
+                                <div style="color:#718096; margin-bottom:3px;">錯誤訊息</div>
+                                <div style="color:#e53e3e; font-size:13px;">${openrouter.error}</div>
+                            </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                    
+                    <!-- Supabase -->
+                    <div style="border:2px solid ${supabaseStatus.color}; border-radius:12px; padding:20px; background:${supabaseStatus.color}08;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                            <h3 style="margin:0; color:#2d3748; font-size:18px;">${supabase.name}</h3>
+                            <span style="background:${supabaseStatus.color}; color:white; padding:4px 12px; border-radius:20px; font-size:13px; font-weight:600;">
+                                ${supabaseStatus.icon} ${supabaseStatus.text}
+                            </span>
+                        </div>
+                        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; font-size:14px;">
+                            <div>
+                                <div style="color:#718096; margin-bottom:3px;">URL</div>
+                                <div style="color:#2d3748; font-weight:600; font-size:13px;">${supabase.url || '-'}</div>
+                            </div>
+                            <div>
+                                <div style="color:#718096; margin-bottom:3px;">響應時間</div>
+                                <div style="color:#2d3748; font-weight:600;">${formatResponseTime(supabase.response_time_ms)}</div>
+                            </div>
+                            ${supabase.error ? `
+                            <div style="grid-column:1/-1;">
+                                <div style="color:#718096; margin-bottom:3px;">錯誤訊息</div>
+                                <div style="color:#e53e3e; font-size:13px;">${supabase.error}</div>
+                            </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="margin-top:20px; padding:15px; background:#f7fafc; border-radius:12px; font-size:13px; color:#4a5568;">
+                    <div style="margin-bottom:8px;"><strong>💡 提示：</strong></div>
+                    <ul style="margin:0; padding-left:20px; line-height:1.8;">
+                        <li>綠色 ✅ 表示 API 正常連接</li>
+                        <li>黃色 ⚠️ 表示 API 配置但連接有問題</li>
+                        <li>紅色 ❌ 表示 API 連接失敗</li>
+                        <li>灰色 ⚙️ 表示 API 未配置（需要設置環境變量）</li>
+                    </ul>
+                </div>
+            `;
+        }
+        
+        function closeAPIStatusModal() {
+            document.getElementById('api-status-modal').style.display = 'none';
+        }
+        
+        // Close modal when clicking outside
+        document.getElementById('api-status-modal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeAPIStatusModal();
+            }
+        });
+        </script>
 </body>
 </html>

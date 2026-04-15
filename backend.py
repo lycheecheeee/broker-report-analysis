@@ -2220,6 +2220,154 @@ def health_check():
             'timestamp': datetime.now().isoformat()
         }), 500
 
+@app.route('/broker_3quilm/api/api-status', methods=['GET'])
+def api_status_check():
+    """API 狀態檢測 - 顯示連接狀態、響應速度和當前使用的 API"""
+    try:
+        import time
+        
+        # 1. 檢查 NVIDIA API
+        nvidia_status = {
+            'name': 'NVIDIA NIM API',
+            'model': NVIDIA_MODEL,
+            'configured': bool(NVIDIA_API_KEY and NVIDIA_API_KEY.strip() != ''),
+            'status': 'unknown',
+            'response_time_ms': None
+        }
+        
+        if nvidia_status['configured']:
+            start_time = time.time()
+            try:
+                test_prompt = "返回 JSON: {\"test\": true}"
+                headers = {
+                    'Authorization': f'Bearer {NVIDIA_API_KEY}',
+                    'Content-Type': 'application/json'
+                }
+                payload = {
+                    'model': NVIDIA_MODEL,
+                    'messages': [{'role': 'user', 'content': test_prompt}],
+                    'max_tokens': 10,
+                    'temperature': 0.1,
+                    'stream': False
+                }
+                
+                response = requests.post(NVIDIA_API_URL, headers=headers, json=payload, timeout=5)
+                elapsed = (time.time() - start_time) * 1000  # 轉換為毫秒
+                
+                if response.status_code == 200:
+                    nvidia_status['status'] = 'connected'
+                    nvidia_status['response_time_ms'] = round(elapsed, 2)
+                else:
+                    nvidia_status['status'] = 'error'
+                    nvidia_status['error'] = f'HTTP {response.status_code}'
+                    nvidia_status['response_time_ms'] = round(elapsed, 2)
+            except Exception as e:
+                elapsed = (time.time() - start_time) * 1000
+                nvidia_status['status'] = 'failed'
+                nvidia_status['error'] = str(e)[:100]
+                nvidia_status['response_time_ms'] = round(elapsed, 2)
+        else:
+            nvidia_status['status'] = 'not_configured'
+        
+        # 2. 檢查 OpenRouter API（備用）
+        openrouter_status = {
+            'name': 'OpenRouter API',
+            'configured': bool(OPENROUTER_API_KEY and OPENROUTER_API_KEY.strip() != ''),
+            'status': 'unknown',
+            'response_time_ms': None
+        }
+        
+        if openrouter_status['configured']:
+            start_time = time.time()
+            try:
+                test_prompt = "返回 JSON: {\"test\": true}"
+                headers = {
+                    'Authorization': f'Bearer {OPENROUTER_API_KEY}',
+                    'Content-Type': 'application/json'
+                }
+                payload = {
+                    'model': 'meta-llama/llama-3.1-8b-instruct',
+                    'messages': [{'role': 'user', 'content': test_prompt}],
+                    'max_tokens': 10,
+                    'temperature': 0.1
+                }
+                
+                response = requests.post(OPENROUTER_API_URL, headers=headers, json=payload, timeout=5)
+                elapsed = (time.time() - start_time) * 1000
+                
+                if response.status_code == 200:
+                    openrouter_status['status'] = 'connected'
+                    openrouter_status['response_time_ms'] = round(elapsed, 2)
+                else:
+                    openrouter_status['status'] = 'error'
+                    openrouter_status['error'] = f'HTTP {response.status_code}'
+                    openrouter_status['response_time_ms'] = round(elapsed, 2)
+            except Exception as e:
+                elapsed = (time.time() - start_time) * 1000
+                openrouter_status['status'] = 'failed'
+                openrouter_status['error'] = str(e)[:100]
+                openrouter_status['response_time_ms'] = round(elapsed, 2)
+        else:
+            openrouter_status['status'] = 'not_configured'
+        
+        # 3. 檢查 Supabase
+        supabase_status = {
+            'name': 'Supabase Database',
+            'url': SUPABASE_URL[:30] + '...' if SUPABASE_URL else None,
+            'configured': bool(SUPABASE_URL and SUPABASE_KEY),
+            'status': 'unknown',
+            'response_time_ms': None
+        }
+        
+        if supabase_status['configured']:
+            start_time = time.time()
+            try:
+                url = f"{SUPABASE_URL}/rest/v1/analysis_results?select=id&limit=1"
+                headers = {
+                    'apikey': SUPABASE_KEY,
+                    'Authorization': f'Bearer {SUPABASE_KEY}'
+                }
+                response = requests.get(url, headers=headers, timeout=5)
+                elapsed = (time.time() - start_time) * 1000
+                
+                if response.status_code == 200:
+                    supabase_status['status'] = 'connected'
+                    supabase_status['response_time_ms'] = round(elapsed, 2)
+                else:
+                    supabase_status['status'] = 'error'
+                    supabase_status['error'] = f'HTTP {response.status_code}'
+                    supabase_status['response_time_ms'] = round(elapsed, 2)
+            except Exception as e:
+                elapsed = (time.time() - start_time) * 1000
+                supabase_status['status'] = 'failed'
+                supabase_status['error'] = str(e)[:100]
+                supabase_status['response_time_ms'] = round(elapsed, 2)
+        else:
+            supabase_status['status'] = 'not_configured'
+        
+        # 4. 確定主要使用的 API
+        primary_api = 'NVIDIA NIM API' if nvidia_status['status'] == 'connected' else \
+                     'OpenRouter API' if openrouter_status['status'] == 'connected' else \
+                     'None (All APIs failed)'
+        
+        return jsonify({
+            'status': 'success',
+            'primary_api': primary_api,
+            'apis': {
+                'nvidia': nvidia_status,
+                'openrouter': openrouter_status,
+                'supabase': supabase_status
+            },
+            'timestamp': datetime.now().isoformat()
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"API status check failed: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'error': str(e)
+        }), 500
+
 if __name__ == '__main__':
     init_db()
     
