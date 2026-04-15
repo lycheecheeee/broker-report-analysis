@@ -3,18 +3,26 @@ from flask_cors import CORS
 import hashlib
 import json
 import os
+import logging
 from datetime import datetime
+
+# 配置日誌系統 - 生產環境只記錄 WARNING 及以上
+logger = logging.getLogger(__name__)
+if os.environ.get('FLASK_ENV') == 'development':
+    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s [%(levelname)s] %(message)s')
+else:
+    logging.basicConfig(level=logging.WARNING, format='%(asctime)s [%(levelname)s] %(message)s')
 
 # 數據庫支持 - SQLite 或 PostgreSQL
 try:
     import psycopg2
     from psycopg2.extras import RealDictCursor
     USE_POSTGRESQL = True
-    print("[DB] ✅ PostgreSQL support available")
+    logger.info("PostgreSQL support available")
 except ImportError:
     USE_POSTGRESQL = False
     import sqlite3
-    print("[DB] ℹ️ Using SQLite (PostgreSQL not available)")
+    logger.warning("Using SQLite (PostgreSQL not available)")
 
 # 可選導入 - 避免 Vercel 環境崩潰
 try:
@@ -22,14 +30,14 @@ try:
     JWT_AVAILABLE = True
 except ImportError:
     JWT_AVAILABLE = False
-    print("[WARN] PyJWT not available")
+    logger.warning("PyJWT not available")
 
 try:
     import PyPDF2
     PYPDF2_AVAILABLE = True
 except ImportError:
     PYPDF2_AVAILABLE = False
-    print("[WARN] PyPDF2 not available")
+    logger.warning("PyPDF2 not available")
 
 import re
 import requests
@@ -39,18 +47,20 @@ app = Flask(__name__, static_folder='.', static_url_path='')
 # 簡化 CORS 配置 - 避免 Vercel 環境問題
 try:
     CORS(app)
-    print("[CORS] ✅ Initialized")
+    logger.info("CORS initialized")
 except Exception as e:
-    print(f"[CORS] ⚠️ Error: {e}")
+    logger.error(f"CORS initialization error: {e}")
 
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 最大上傳 50MB
 
 # 添加請求日誌中間件
 @app.before_request
 def log_request():
-    print(f"\n[REQUEST] {request.method} {request.path}")
-    if request.form:
-        print(f"[REQUEST FORM] {dict(request.form)}")
+    """請求日誌 - 僅開發環境啟用"""
+    if os.environ.get('FLASK_ENV') == 'development':
+        logger.debug(f"{request.method} {request.path}")
+        if request.form:
+            logger.debug(f"Form data: {dict(request.form)}")
 
 
 # 配置
@@ -72,9 +82,9 @@ DB_MODE = 'supabase' if SUPABASE_KEY and SUPABASE_URL else ('sqlite' if not os.e
 try:
     if not os.path.exists(UPLOAD_FOLDER):
         os.makedirs(UPLOAD_FOLDER)
-    print(f"[UPLOAD] ✅ Folder ready: {UPLOAD_FOLDER}")
+    logger.info(f"Upload folder ready: {UPLOAD_FOLDER}")
 except Exception as e:
-    print(f"[UPLOAD] ⚠️ Folder creation error: {e}")
+    logger.error(f"Upload folder creation error: {e}")
 
 # 數據庫初始化標誌
 _db_initialized = False
@@ -115,10 +125,10 @@ def supabase_request(method, table, data=None, query_params=None):
                 return []
             return response.json()
         else:
-            print(f"[Supabase] Error {response.status_code}: {response.text}")
+            logger.error(f"Supabase error {response.status_code}: {response.text}")
             return None
     except Exception as e:
-        print(f"[Supabase] Request failed: {e}")
+        logger.error(f"Supabase request failed: {e}")
         return None
 
 def init_db():
@@ -172,7 +182,7 @@ def init_db():
     for col_name, col_type in migration_columns:
         try:
             c.execute(f"ALTER TABLE analysis_results ADD COLUMN {col_name} {col_type}")
-            print(f"✅ 已添加 {col_name} 字段")
+            logger.info(f"Added column: {col_name}")
         except:
             pass  # 字段已存在,忽略
     
@@ -258,14 +268,14 @@ def ensure_db_initialized():
             if DB_MODE == 'supabase':
                 # Supabase 模式：測試連接
                 result = supabase_request('GET', 'analysis_results', query_params='limit=1')
-                print(f"[DB] ✅ Supabase connected (mode: {DB_MODE})")
+                logger.info(f"Supabase connected (mode: {DB_MODE})")
             else:
                 # SQLite/內存模式
                 init_db()
-                print(f"[DB] ✅ Database initialized (mode: {DB_MODE})")
+                logger.info(f"Database initialized (mode: {DB_MODE})")
             _db_initialized = True
         except Exception as e:
-            print(f"[DB] ⚠️ Initialization error: {e}")
+            logger.error(f"Database initialization error: {e}")
             # 即使失敗也標記為已初始化，避免重複嘗試
             _db_initialized = True
 
@@ -324,39 +334,37 @@ def token_required(f):
 def parse_pdf(pdf_path):
     """解析PDF文件"""
     try:
-        print(f"[PDF PARSE] 開始解析: {pdf_path}")
+        logger.debug(f"Parsing PDF: {pdf_path}")
         file_size = os.path.getsize(pdf_path)
-        print(f"[PDF PARSE] 文件大小: {file_size} bytes")
         
         # 檢查文件大小，如果太小則跳過
         if file_size < 1000:
-            print(f"[PDF PARSE WARNING] 文件太小 ({file_size} bytes)，可能是損壞文件")
+            logger.warning(f"File too small ({file_size} bytes), may be corrupted")
             return None
         
         with open(pdf_path, 'rb') as file:
             pdf_reader = PyPDF2.PdfReader(file, strict=False)  # 設置strict=False以容忍一些錯誤
-            print(f"[PDF PARSE] PDF頁數: {len(pdf_reader.pages)}")
+            logger.debug(f"PDF pages: {len(pdf_reader.pages)}")
             
             text = ''
             for i, page in enumerate(pdf_reader.pages[:5]):  # 只讀前5頁
                 try:
                     page_text = page.extract_text()
                     if page_text:
-                        print(f"[PDF PARSE] 第{i+1}頁提取成功，長度: {len(page_text)}")
+                        logger.debug(f"Page {i+1} extracted, length: {len(page_text)}")
                         text += page_text + '\n'
                     else:
-                        print(f"[PDF PARSE] 第{i+1}頁無文本內容")
+                        logger.debug(f"Page {i+1} has no text content")
                 except Exception as page_error:
-                    print(f"[PDF PARSE] 第{i+1}頁提取失敗: {page_error}")
+                    logger.warning(f"Page {i+1} extraction failed: {page_error}")
                     continue
             
-            print(f"[PDF PARSE] 總文本長度: {len(text)}")
+            logger.debug(f"Total text length: {len(text)}")
             return text if text.strip() else None
     except Exception as e:
         import traceback
         error_detail = traceback.format_exc()
-        print(f"[PDF PARSE ERROR] {e}")
-        print(f"[PDF PARSE ERROR DETAIL]\n{error_detail}")
+        logger.error(f"PDF parse error: {e}\n{error_detail}")
         return None
 
 def extract_broker_info(text):
@@ -487,7 +495,7 @@ def extract_release_date(text):
         match = re.search(pattern, text, re.IGNORECASE)
         if match:
             date_str = match.group(1).strip()
-            print(f"[DATE EXTRACT] 找到日期字符串: {date_str}")
+            logger.debug(f"Found date string: {date_str}")
             
             # 嘗試解析各種格式
             try:
@@ -534,10 +542,10 @@ def extract_release_date(text):
                             dt = datetime(year, month, day)
                             return dt.strftime('%Y-%m-%d')
             except Exception as e:
-                print(f"[DATE EXTRACT] 解析失敗: {e}")
+                logger.debug(f"Date parse failed: {e}")
                 continue
     
-    print("[DATE EXTRACT] 未找到有效日期")
+    logger.debug("No valid date found")
     return '-'
 
 def generate_ai_summary(broker_name, rating, target_price, text):
@@ -575,19 +583,19 @@ def generate_ai_summary(broker_name, rating, target_price, text):
             'temperature': 0.7
         }
         
-        print(f"[AI] 正在調用 OpenRouter API...")
+        logger.debug("Calling OpenRouter API...")
         response = requests.post(OPENROUTER_API_URL, headers=headers, json=payload, timeout=30)
         
         if response.status_code == 200:
             result = response.json()
             ai_content = result['choices'][0]['message']['content']
-            print(f"[AI] 成功生成摘要")
+            logger.info("AI summary generated successfully")
             return ai_content.strip()
         else:
-            print(f"[AI] API 錯誤: {response.status_code} - {response.text[:200]}")
+            logger.error(f"AI API error: {response.status_code} - {response.text[:200]}")
             return None
     except Exception as e:
-        print(f"[AI] 分析失敗: {str(e)}")
+        logger.error(f"AI analysis failed: {str(e)}")
         return None
 
 def ensure_traditional_chinese(data):
@@ -663,7 +671,7 @@ def ensure_traditional_chinese(data):
         total_chars = len(result)
         if total_chars > 0 and english_chars / total_chars > 0.3:
             # 如果英文比例過高，添加警告標記
-            print(f"[WARNING] 檢測到大量英文內容: {result[:100]}")
+            logger.warning(f"Detected high English content ratio: {result[:100]}")
         
         return result
     
@@ -769,7 +777,7 @@ def generate_ai_summary_with_fields(broker_name, rating, target_price, text, fil
         
         # 檢查 API Key 是否設置
         if not OPENROUTER_API_KEY or OPENROUTER_API_KEY.strip() == '':
-            print("[AI FIELDS] ⚠️ OPENROUTER_API_KEY 未設置，使用備用方案")
+            logger.warning("OPENROUTER_API_KEY not set, using fallback")
             fallback_summary = f"基於{broker_name}的研報分析：\n\n• 評級: {rating}\n• 目標價: HK${target_price:.2f if target_price else '未明確'}\n\n（註：AI服務未配置，顯示基本信息）"
             fallback_data = {
                 'release_date': '-',
@@ -792,13 +800,13 @@ def generate_ai_summary_with_fields(broker_name, rating, target_price, text, fil
             'temperature': 0.3
         }
         
-        print(f"[AI FIELDS] 正在調用 OpenRouter API 提取字段...")
+        logger.debug("Calling OpenRouter API to extract fields...")
         response = requests.post(OPENROUTER_API_URL, headers=headers, json=payload, timeout=30)
         
         if response.status_code == 200:
             result = response.json()
             ai_content = result['choices'][0]['message']['content'].strip()
-            print(f"[AI FIELDS] 原始返回: {ai_content[:200]}")
+            logger.debug(f"Raw AI response: {ai_content[:200]}")
             
             # 嘗試解析 JSON
             try:
@@ -806,18 +814,18 @@ def generate_ai_summary_with_fields(broker_name, rating, target_price, text, fil
                 ai_content_clean = ai_content.replace('```json', '').replace('```', '').strip()
                 extracted_data = json.loads(ai_content_clean)
                 
-                print(f"[AI FIELDS] 成功提取字段")
+                logger.info("Fields extracted successfully")
                 
                 # 強制檢查並修正語言：確保所有字段都是繁體中文
                 extracted_data = ensure_traditional_chinese(extracted_data)
                 
                 return extracted_data.get('ai_summary', ''), extracted_data
             except json.JSONDecodeError as e:
-                print(f"[AI FIELDS] JSON解析失敗: {e}")
+                logger.error(f"JSON parse failed: {e}")
                 # 回退到舊方法
                 return ai_content, {}
         else:
-            print(f"[AI FIELDS] API 錯誤: {response.status_code}，使用備用方案")
+            logger.error(f"API error {response.status_code}, using fallback")
             # API失敗時返回基本數據
             fallback_summary = f"基於{broker_name}的研報分析：\n\n• 評級: {rating}\n• 目標價: HK${target_price:.2f}\n\n（註：AI分析服務暫時不可用，顯示基本信息）"
             fallback_data = {
@@ -832,7 +840,7 @@ def generate_ai_summary_with_fields(broker_name, rating, target_price, text, fil
             }
             return fallback_summary, fallback_data
     except Exception as e:
-        print(f"[AI FIELDS] 分析失敗: {str(e)}，使用備用方案")
+        logger.error(f"Analysis failed: {str(e)}, using fallback")
         import traceback
         traceback.print_exc()
         # 異常時也返回基本數據
@@ -927,35 +935,35 @@ def analyze_pdf():
             user_id = verify_token(token)
         
         if not user_id:
-            print("[ERROR] 未授權訪問")
+            logger.error("Unauthorized access attempt")
             return jsonify({'error': '未授權,請先登入'}), 401
         
         if 'file' not in request.files:
-            print("[ERROR] 沒有文件上傳")
+            logger.error("No file uploaded")
             return jsonify({'error': '沒有文件'}), 400
         
         file = request.files['file']
         prompt = request.form.get('prompt', '')
         
-        print(f"[UPLOAD] 收到文件: {file.filename}")
+        logger.debug(f"Received file: {file.filename}")
         
         # 保存文件
         filename = file.filename
         filepath = os.path.join(UPLOAD_FOLDER, filename)
         file.save(filepath)
-        print(f"[UPLOAD] 文件已保存: {filepath}")
+        logger.debug(f"File saved: {filepath}")
         
         # 解析PDF
         text = parse_pdf(filepath)
         if not text:
-            print(f"[WARNING] PDF解析失敗，跳過此文件: {filename}")
+            logger.warning(f"PDF parse failed, skipping: {filename}")
             return jsonify({
                 'error': f'PDF解析失敗。文件大小: {os.path.getsize(filepath)} bytes。文件可能已損壞或為空文件。請確認文件路徑正確且文件完整。',
                 'skipped': True,
                 'file_size': os.path.getsize(filepath)
             }), 200  # 返回200而不是500，讓前端知道這是預期行為
         
-        print(f"[PARSE] PDF解析成功,文本長度: {len(text)}")
+        logger.debug(f"PDF parsed successfully, text length: {len(text)}")
         
         # 提取基本信息
         broker_name, rating, target_price = extract_broker_info(text)
@@ -992,7 +1000,7 @@ def analyze_pdf():
         
         upside = round((target_price - current_price) / current_price * 100, 2) if target_price else None
         
-        print(f"[EXTRACT] 券商:{broker_name}, 評級:{rating}, 目標價:{target_price}")
+        logger.info(f"Extracted - Broker: {broker_name}, Rating: {rating}, Target: {target_price}")
         
         # ========== 去重檢查 ==========
         conn_check = sqlite3.connect(DATABASE)
@@ -1009,8 +1017,8 @@ def analyze_pdf():
         conn_check.close()
         
         if existing_record:
-            print(f"[DUPLICATE] 文件 {filename} 今日已分析過（記錄ID: {existing_record[0]}, 時間: {existing_record[1]}）")
-            print(f"[DUPLICATE] 跳過重複分析，返回現有數據")
+            logger.info(f"Duplicate file {filename} (ID: {existing_record[0]}, Time: {existing_record[1]})")
+            logger.info("Skipping duplicate analysis, returning existing data")
             
             # 返回現有記錄
             return jsonify({
@@ -1021,7 +1029,7 @@ def analyze_pdf():
                 'analysis_time': existing_record[1]
             })
         
-        print(f"[NEW] 新文件，開始分析...")
+        logger.info("New file, starting analysis...")
         # ========== 去重檢查結束 ==========
         
         # ========== 填充缺失字段 ==========
@@ -1038,10 +1046,7 @@ def analyze_pdf():
             target_price = 0.0
             upside = None
         
-        print(f"[FIELDS] company_name: {company_name}")
-        print(f"[FIELDS] stock_code: {stock_code}")
-        print(f"[FIELDS] key_points length: {len(key_points) if key_points else 0}")
-        print(f"[FIELDS] risks length: {len(risks) if risks else 0}")
+        logger.debug(f"Fields - company: {company_name}, stock: {stock_code}, key_points: {len(key_points) if key_points else 0}, risks: {len(risks) if risks else 0}")
         # ========== 填充缺失字段結束 ==========
         
         # 使用真正的 AI 生成摘要
@@ -1049,7 +1054,7 @@ def analyze_pdf():
         
         # 如果 AI 失敗,使用備用方案
         if not ai_summary:
-            print("[WARNING] AI 分析失敗,使用備用方案")
+            logger.warning("AI analysis failed, using fallback")
             ai_summary = f"基於{broker_name}的研報分析:\n\n"
             ai_summary += f"• 評級: {rating}\n"
             ai_summary += f"• 目標價: HK${target_price:.2f}\n" if target_price else "• 目標價: 未明確\n"
@@ -1073,7 +1078,7 @@ def analyze_pdf():
         conn.commit()
         conn.close()
         
-        print(f"[SUCCESS] 分析完成, ID: {analysis_id}")
+        logger.info(f"Analysis completed, ID: {analysis_id}")
         
         # 計算數據匯總統計
         summary_stats = {
@@ -1109,7 +1114,7 @@ def analyze_pdf():
             'summary_stats': summary_stats
         })
     except Exception as e:
-        print(f"[ERROR] 分析過程出錯: {str(e)}")
+        logger.error(f"Analysis error: {str(e)}")
         import traceback
         traceback.print_exc()
         return jsonify({'error': f'伺服器錯誤: {str(e)}'}), 500
@@ -1297,7 +1302,7 @@ def scan_folder(current_user):
             conn_check.close()
             
             if existing:
-                print(f"[DUPLICATE] 跳過 {pdf_file}（今日已分析）")
+                logger.info(f"Skipping duplicate: {pdf_file}")
                 skipped_count += 1
                 continue
             # ========== 去重檢查結束 ==========
@@ -1346,7 +1351,7 @@ def scan_folder(current_user):
                 conn.close()
                 analyzed_count += 1
         except Exception as e:
-            print(f"分析 {pdf_file} 失敗: {e}")
+            logger.error(f"Failed to analyze {pdf_file}: {e}")
             continue
     
     return jsonify({
@@ -1428,17 +1433,13 @@ def analyze_existing_pdf():
         
         filepath = os.path.join(pdf_folder, filename)
         
-        print(f"[DEBUG] folder_path: {folder_path}")
-        print(f"[DEBUG] pdf_folder: {pdf_folder}")
-        print(f"[DEBUG] filename: {filename}")
-        print(f"[DEBUG] filepath: {filepath}")
-        print(f"[DEBUG] file exists: {os.path.exists(filepath)}")
+        logger.debug(f"Analyzing PDF - folder: {folder_path}, file: {filename}, path: {filepath}")
         
         if not os.path.exists(filepath):
             return jsonify({'error': f'文件不存在: {filename} (完整路徑: {filepath})'}), 404
         
         # 解析PDF
-        print(f"[PARSE] 開始解析文件: {filepath}")
+        logger.debug(f"Starting PDF parse: {filepath}")
         text = parse_pdf(filepath)
         if not text:
             file_size = os.path.getsize(filepath) if os.path.exists(filepath) else 0
@@ -1943,11 +1944,13 @@ def health_check():
 if __name__ == '__main__':
     init_db()
     
-    print("\n" + "="*60)
-    print("🚀 Broker Report Analysis System")
-    print("="*60)
-    print(f"📍 Server: https://{os.environ.get('VERCEL_URL', 'your-app.vercel.app')}")
-    print(f"📍 Health Check: https://{os.environ.get('VERCEL_URL', 'your-app.vercel.app')}/api/health")
-    print("="*60 + "\n")
+    # 僅喺開發環境顯示啟動信息
+    if os.environ.get('FLASK_ENV') == 'development':
+        logger.info("\n" + "="*60)
+        logger.info("🚀 Broker Report Analysis System")
+        logger.info("="*60)
+        logger.info(f"📍 Server: https://{os.environ.get('VERCEL_URL', 'your-app.vercel.app')}")
+        logger.info(f"📍 Health Check: https://{os.environ.get('VERCEL_URL', 'your-app.vercel.app')}/api/health")
+        logger.info("="*60 + "\n")
     
     app.run(debug=True, port=62190, use_reloader=False)
