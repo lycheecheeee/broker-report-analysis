@@ -1,10 +1,20 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
-import sqlite3
 import hashlib
 import json
 import os
 from datetime import datetime
+
+# 數據庫支持 - SQLite 或 PostgreSQL
+try:
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
+    USE_POSTGRESQL = True
+    print("[DB] ✅ PostgreSQL support available")
+except ImportError:
+    USE_POSTGRESQL = False
+    import sqlite3
+    print("[DB] ℹ️ Using SQLite (PostgreSQL not available)")
 
 # 可選導入 - 避免 Vercel 環境崩潰
 try:
@@ -45,11 +55,15 @@ def log_request():
 
 # 配置
 SECRET_KEY = os.environ.get('SECRET_KEY', 'tencent-broker-analysis-secret-key-2026')
-# Vercel serverless 環境使用內存數據庫（:memory:），本地環境使用文件數據庫
-DATABASE = os.environ.get('DATABASE_URL', ':memory:' if os.environ.get('VERCEL') else 'broker_analysis.db')
+# Supabase 配置
+SUPABASE_URL = os.environ.get('SUPABASE_URL', 'https://excfzahjozmmbnteyuij.supabase.co')
+SUPABASE_KEY = os.environ.get('SUPABASE_KEY', '')
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), '700')
 OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY', '')
 OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions'
+
+# 數據庫模式：'supabase' 或 'sqlite'
+DB_MODE = 'supabase' if SUPABASE_KEY else ('sqlite' if not os.environ.get('VERCEL') else 'memory')
 
 # 確保上傳文件夾存在
 try:
@@ -61,6 +75,48 @@ except Exception as e:
 
 # 數據庫初始化標誌
 _db_initialized = False
+
+def supabase_request(method, table, data=None, query_params=None):
+    """Supabase REST API 請求輔助函數"""
+    if DB_MODE != 'supabase' or not SUPABASE_KEY:
+        return None
+    
+    url = f"{SUPABASE_URL}/rest/v1/{table}"
+    headers = {
+        'apikey': SUPABASE_KEY,
+        'Authorization': f'Bearer {SUPABASE_KEY}',
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'  # 返回插入/更新後的數據
+    }
+    
+    try:
+        if method == 'GET':
+            if query_params:
+                url += f"?{query_params}"
+            response = requests.get(url, headers=headers)
+        elif method == 'POST':
+            response = requests.post(url, headers=headers, json=data)
+        elif method == 'PATCH':
+            if query_params:
+                url += f"?{query_params}"
+            response = requests.patch(url, headers=headers, json=data)
+        elif method == 'DELETE':
+            if query_params:
+                url += f"?{query_params}"
+            response = requests.delete(url, headers=headers)
+        else:
+            return None
+        
+        if response.status_code in [200, 201, 204]:
+            if response.status_code == 204:
+                return []
+            return response.json()
+        else:
+            print(f"[Supabase] Error {response.status_code}: {response.text}")
+            return None
+    except Exception as e:
+        print(f"[Supabase] Request failed: {e}")
+        return None
 
 def init_db():
     """初始化數據庫"""
@@ -1806,10 +1862,12 @@ def test_endpoint():
             'status': 'ok',
             'message': 'Backend is running!',
             'timestamp': datetime.now().isoformat(),
-            'database': DATABASE
+            'db_mode': DB_MODE,
+            'supabase_configured': bool(SUPABASE_KEY)
         }), 200
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        import traceback
+        return jsonify({'error': str(e), 'traceback': traceback.format_exc()}), 500
 
 # Health check endpoint
 @app.route('/api/health', methods=['GET'])
