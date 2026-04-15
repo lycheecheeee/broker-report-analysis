@@ -5,8 +5,22 @@ import hashlib
 import json
 import os
 from datetime import datetime
-import jwt
-import PyPDF2
+
+# 可選導入 - 避免 Vercel 環境崩潰
+try:
+    import jwt
+    JWT_AVAILABLE = True
+except ImportError:
+    JWT_AVAILABLE = False
+    print("[WARN] PyJWT not available")
+
+try:
+    import PyPDF2
+    PYPDF2_AVAILABLE = True
+except ImportError:
+    PYPDF2_AVAILABLE = False
+    print("[WARN] PyPDF2 not available")
+
 import re
 import requests
 
