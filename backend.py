@@ -1246,8 +1246,14 @@ def scan_folder():
                     'created_at': datetime.utcnow().isoformat()
                 }
                 
+                logger.info(f"Saving to Supabase (scan): {pdf_file}")
                 result = supabase_request('POST', 'analysis_results', data=supabase_data)
-                analyzed_count += 1
+                
+                if result and len(result) > 0:
+                    logger.info(f"Successfully saved to Supabase (scan), ID: {result[0]['id']}")
+                    analyzed_count += 1
+                else:
+                    logger.warning(f"Failed to save to Supabase (scan) for {pdf_file}. Result: {result}")
         except Exception as e:
             logger.error(f"Failed to analyze {pdf_file}: {e}")
             continue
@@ -1401,8 +1407,15 @@ def analyze_existing_pdf():
             'created_at': datetime.utcnow().isoformat()
         }
         
+        logger.info(f"Saving to Supabase: {filename}")
         result = supabase_request('POST', 'analysis_results', data=supabase_data)
-        analysis_id = result[0]['id'] if result and len(result) > 0 else None
+        
+        if result and len(result) > 0:
+            analysis_id = result[0]['id']
+            logger.info(f"Successfully saved to Supabase, ID: {analysis_id}")
+        else:
+            analysis_id = None
+            logger.warning(f"Failed to save to Supabase for {filename}. Result: {result}")
         
         # 計算數據匯總統計
         summary_stats = {
