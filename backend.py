@@ -58,9 +58,9 @@ SECRET_KEY = os.environ.get('SECRET_KEY')
 if not SECRET_KEY:
     raise EnvironmentError("Missing required environment variable: SECRET_KEY")
 
-# Supabase 配置
-SUPABASE_URL = os.environ.get('SUPABASE_URL')
-SUPABASE_KEY = os.environ.get('SUPABASE_KEY')
+# Supabase 配置 - 清理可能的換行符和空白
+SUPABASE_URL = os.environ.get('SUPABASE_URL', '').strip()
+SUPABASE_KEY = os.environ.get('SUPABASE_KEY', '').strip()
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), '700')
 OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY', '')
 OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions'
