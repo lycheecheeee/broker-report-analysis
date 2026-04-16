@@ -1062,35 +1062,118 @@
             
             // Extract data from API response
             const brokerName = data.broker_name || '未知券商';
+            const stockName = data.stock_name || data.company_name || '-';
             const rating = data.rating || '-';
+            const investmentGrade = data.investment_grade || '-';
             const targetPrice = data.target_price ? `HK$${data.target_price.toFixed(2)}` : '-';
+            const targetPriceAdj = data.target_price_adjusted ? `HK$${data.target_price_adjusted.toFixed(2)}` : '-';
             const currentPrice = data.current_price ? `HK$${data.current_price.toFixed(2)}` : '-';
+            const lastTransacted = data.last_transacted_price ? `HK$${data.last_transacted_price.toFixed(2)}` : '-';
+            const latestClose = data.latest_close_before_release ? `HK$${data.latest_close_before_release.toFixed(2)}` : '-';
             const upside = data.upside_potential ? `${data.upside_potential > 0 ? '+' : ''}${data.upside_potential}%` : '-';
+            const releaseDate = data.release_date || '-';
+            const industry = data.industry || '-';
+            const subIndustry = data.sub_industry || '-';
+            const indexes = data.indexes || '-';
+            const horizon = data.investment_horizon || '-';
+            const targetHitDate = data.target_hit_date || '-';
+            const ratingRevisedDate = data.rating_revised_date || '-';
+            const targetRevisedDate = data.target_revised_date || '-';
+            const todayDate = data.today_date || '-';
+            const notes = data.notes || '';
             const aiSummary = data.ai_summary || '暫無AI摘要';
             const filename = data.pdf_filename || '未知文件';
+
+            // Rating color
+            const ratingColor = (rating === '買入' || rating === '增持') ? '#28a745' : (rating === '持有' ? '#ffc107' : (rating === '賣出' || rating === '減持' ? '#dc3545' : '#667eea'));
+            // Upside color
+            const upsideColor = data.upside_potential > 0 ? '#28a745' : (data.upside_potential < 0 ? '#dc3545' : '#667eea');
             
             card.innerHTML = `
                 <div class="result-header">
-                    <div class="company-name">${brokerName}</div>
+                    <div class="company-name" style="display:flex;align-items:center;gap:8px;">
+                        <span style="background:${ratingColor};color:white;padding:2px 10px;border-radius:12px;font-size:12px;font-weight:bold;">${rating}</span>
+                        <span>${stockName}</span>
+                        <span style="color:#a0aec0;font-size:13px;font-weight:normal;">| ${brokerName}</span>
+                    </div>
                     <div class="report-date">${filename}</div>
                 </div>
-                
-                <div class="metrics-grid">
-                    <div class="metric-card">
-                        <div class="label">評級</div>
-                        <div class="value">${rating}</div>
+
+                <!-- 核心指標卡片 -->
+                <div class="metrics-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin:12px 0;">
+                    <div class="metric-card" style="padding:10px;background:linear-gradient(135deg,#f0f4ff,#e8ecff);border-radius:8px;text-align:center;">
+                        <div class="label" style="font-size:11px;color:#718096;margin-bottom:4px;">投資評級</div>
+                        <div class="value" style="font-size:18px;font-weight:bold;color:${ratingColor};">${rating}</div>
                     </div>
-                    <div class="metric-card">
-                        <div class="label">目標價</div>
-                        <div class="value">${targetPrice}</div>
+                    <div class="metric-card" style="padding:10px;background:linear-gradient(135deg,#f0fff4,#e6ffed);border-radius:8px;text-align:center;">
+                        <div class="label" style="font-size:11px;color:#718096;margin-bottom:4px;">目標價</div>
+                        <div class="value" style="font-size:18px;font-weight:bold;color:#28a745;">${targetPrice}</div>
                     </div>
-                    <div class="metric-card">
-                        <div class="label">當前價</div>
-                        <div class="value">${currentPrice}</div>
+                    <div class="metric-card" style="padding:10px;background:linear-gradient(135deg,#fff5f5,#fed7d7);border-radius:8px;text-align:center;">
+                        <div class="label" style="font-size:11px;color:#718096;margin-bottom:4px;">當前價</div>
+                        <div class="value" style="font-size:18px;font-weight:bold;color:#2d3748;">${currentPrice}</div>
                     </div>
-                    <div class="metric-card">
-                        <div class="label">上行空間</div>
-                        <div class="value">${upside}</div>
+                    <div class="metric-card" style="padding:10px;background:linear-gradient(135deg,${upsideColor}11,${upsideColor}22);border-radius:8px;text-align:center;">
+                        <div class="label" style="font-size:11px;color:#718096;margin-bottom:4px;">上行空間</div>
+                        <div class="value" style="font-size:18px;font-weight:bold;color:${upsideColor};">${upside}</div>
+                    </div>
+                </div>
+
+                <!-- 詳細 AI 提取字段 - 可摺疊 -->
+                <div style="margin-top:8px;">
+                    <button onclick="toggleDetailSection(this)" style="width:100%; padding:6px 10px; background:#f8f9fa; border:1px solid #e9ecef; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600; color:#495057; display:flex; justify-content:space-between; align-items:center; transition:all 0.2s;" onmouseover="this.style.background='#e9ecef'" onmouseout="this.style.background='#f8f9fa'">
+                        <span>
+                            <svg style="width:14px;height:14px;vertical-align:middle;margin-right:4px;fill:#667eea;" viewBox="0 0 24 24">
+                                <path d="M3,3H21V5H3V3M3,7H21V9H3V7M3,11H21V13H3V11M3,15H21V17H3V15M3,19H21V21H3V19Z"/>
+                            </svg>
+                            詳細分析數據（${[releaseDate,industry,subIndustry,indexes,investmentGrade,targetPriceAdj,latestClose,targetHitDate,ratingRevisedDate,targetRevisedDate,horizon,lastTransacted,todayDate].filter(v => v && v !== '-').length}/14 項已填寫）
+                        </span>
+                        <span class="arrow-icon" style="transition:transform 0.3s;font-size:10px;">▼</span>
+                    </button>
+                    <div class="detail-content" style="display:none; margin-top:8px; padding:12px; background:#f7fafc; border-radius:6px; border:1px solid #e2e8f0;">
+                        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                            <tr style="border-bottom:1px solid #edf2f7;">
+                                <td style="padding:6px 8px;color:#718096;font-weight:500;width:35%;">發布日期</td>
+                                <td style="padding:6px 8px;font-weight:600;">${releaseDate}</td>
+                                <td style="padding:6px 8px;color:#718096;font-weight:500;width:35%;">相關行業</td>
+                                <td style="padding:6px 8px;font-weight:600;">${industry}</td>
+                            </tr>
+                            <tr style="border-bottom:1px solid #edf2f7;">
+                                <td style="padding:6px 8px;color:#718096;font-weight:500;">子行業</td>
+                                <td style="padding:6px 8px;font-weight:600;">${subIndustry}</td>
+                                <td style="padding:6px 8px;color:#718096;font-weight:500;">相關指數</td>
+                                <td style="padding:6px 8px;font-weight:600;">${indexes}</td>
+                            </tr>
+                            <tr style="border-bottom:1px solid #edf2f7;">
+                                <td style="padding:6px 8px;color:#718096;font-weight:500;">投資評級</td>
+                                <td style="padding:6px 8px;font-weight:600;color:${ratingColor};">${investmentGrade}</td>
+                                <td style="padding:6px 8px;color:#718096;font-weight:500;">調整後目標價</td>
+                                <td style="padding:6px 8px;font-weight:600;">${targetPriceAdj}</td>
+                            </tr>
+                            <tr style="border-bottom:1px solid #edf2f7;">
+                                <td style="padding:6px 8px;color:#718096;font-weight:500;">報告前收市價</td>
+                                <td style="padding:6px 8px;font-weight:600;">${latestClose}</td>
+                                <td style="padding:6px 8px;color:#718096;font-weight:500;">最新成交價</td>
+                                <td style="padding:6px 8px;font-weight:600;">${lastTransacted}</td>
+                            </tr>
+                            <tr style="border-bottom:1px solid #edf2f7;">
+                                <td style="padding:6px 8px;color:#718096;font-weight:500;">目標達成日</td>
+                                <td style="padding:6px 8px;font-weight:600;">${targetHitDate}</td>
+                                <td style="padding:6px 8px;color:#718096;font-weight:500;">評級修訂日</td>
+                                <td style="padding:6px 8px;font-weight:600;">${ratingRevisedDate}</td>
+                            </tr>
+                            <tr style="border-bottom:1px solid #edf2f7;">
+                                <td style="padding:6px 8px;color:#718096;font-weight:500;">目標價修訂日</td>
+                                <td style="padding:6px 8px;font-weight:600;">${targetRevisedDate}</td>
+                                <td style="padding:6px 8px;color:#718096;font-weight:500;">投資期限</td>
+                                <td style="padding:6px 8px;font-weight:600;">${horizon}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:6px 8px;color:#718096;font-weight:500;">報告日期</td>
+                                <td style="padding:6px 8px;font-weight:600;" colspan="3">${todayDate}</td>
+                            </tr>
+                            ${notes ? `<tr><td style="padding:6px 8px;color:#718096;font-weight:500;" colspan="4"><strong>備註：</strong>${notes}</td></tr>` : ''}
+                        </table>
                     </div>
                 </div>
                 
@@ -1112,6 +1195,24 @@
             `;
             
             container.appendChild(card);
+        }
+
+        function toggleDetailSection(button) {
+            const content = button.nextElementSibling;
+            const arrow = button.querySelector('.arrow-icon');
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                arrow.style.transform = 'rotate(180deg)';
+                button.style.background = '#667eea';
+                button.style.color = 'white';
+                button.style.borderColor = '#667eea';
+            } else {
+                content.style.display = 'none';
+                arrow.style.transform = 'rotate(0deg)';
+                button.style.background = '#f8f9fa';
+                button.style.color = '#495057';
+                button.style.borderColor = '#e9ecef';
+            }
         }
         
         function toggleAISummary(button) {
@@ -1723,12 +1824,15 @@
                 // 顯示圖表區域
                 document.getElementById('chartsSection').style.display = 'block';
                 
-                // 清空容器
+                // 不清空 chartsContainer — 保留 generateCharts() 已渲染的對比表
                 const container = document.getElementById('chartsContainer');
-                container.innerHTML = '';
+                // 如果容器是空的，先清空（防止多次調用時重複添加導出按鈕）
+                const existingExport = container.querySelector('.export-btn-wrapper');
+                if (existingExport) existingExport.remove();
                 
                 // 添加導出按鈕
                 const exportBtnDiv = document.createElement('div');
+                exportBtnDiv.className = 'export-btn-wrapper';
                 exportBtnDiv.style.cssText = 'margin-bottom:20px;text-align:right;';
                 exportBtnDiv.innerHTML = `
                     <button onclick="exportAnalysisReport()" style="
