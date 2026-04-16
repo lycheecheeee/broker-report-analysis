@@ -199,42 +199,42 @@
         .result-card {
             background: rgba(248, 249, 250, 0.7);
             backdrop-filter: blur(10px);
-            border-radius: 16px;
-            padding: 24px;
-            margin-bottom: 20px;
-            border-left: 4px solid #667eea;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-            transition: all 0.3s ease;
+            border-radius: 10px;
+            padding: 12px 14px;
+            margin-bottom: 10px;
+            border-left: 3px solid #667eea;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+            transition: all 0.2s ease;
         }
         .result-card:hover {
-            transform: translateX(4px);
-            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+            transform: translateX(2px);
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.06);
         }
         .result-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 15px;
+            margin-bottom: 8px;
         }
-        .company-name { font-size: 22px; font-weight: 600; color: #333; }
-        .report-date { font-size: 14px; color: #666; }
+        .company-name { font-size: 15px; font-weight: 600; color: #333; }
+        .report-date { font-size: 12px; color: #999; }
         
         .metrics-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin: 20px 0;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin: 8px 0;
         }
         .metric-card {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 20px;
-            border-radius: 10px;
+            padding: 8px 6px;
+            border-radius: 6px;
             text-align: center;
         }
-        .metric-card .label { font-size: 14px; opacity: 0.9; margin-bottom: 10px; }
-        .metric-card .value { font-size: 28px; font-weight: bold; margin-bottom: 5px; }
-        .metric-card .change { font-size: 14px; opacity: 0.9; }
+        .metric-card .label { font-size: 11px; opacity: 0.9; margin-bottom: 2px; }
+        .metric-card .value { font-size: 16px; font-weight: bold; }
+        .metric-card .change { font-size: 11px; opacity: 0.9; }
         
         .chart-grid {
             display: grid;
@@ -758,8 +758,8 @@
             }
         </style>
         
-        <!-- Navigation Tabs -->
-        <div style="margin-bottom:20px; display:flex; gap:10px; flex-wrap:wrap;">
+        <!-- Navigation Tabs + Action Buttons -->
+        <div style="margin-bottom:20px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
             <button onclick="showTab('analysis')" id="tab-analysis" class="nav-tab active">
                 <svg style="width:18px;height:18px;vertical-align:middle;margin-right:6px;fill:currentColor;" viewBox="0 0 24 24">
                     <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
@@ -771,6 +771,23 @@
                     <path d="M3,3H21V5H3V3M3,7H21V9H3V7M3,11H21V13H3V11M3,15H21V17H3V15M3,19H21V21H3V19Z"/>
                 </svg>
                 項目結構
+            </button>
+            <div style="flex:1;"></div>
+            <button onclick="loadHistory()" id="load-history-btn" style="padding:10px 20px; background:rgba(255,255,255,0.7); color:#4a5568; border:2px solid rgba(255,255,255,0.5); border-radius:12px; cursor:pointer; font-size:14px; font-weight:600; transition:all 0.3s ease; backdrop-filter:blur(10px); display:inline-flex; align-items:center; gap:6px;"
+                    onmouseover="this.style.background='rgba(255,255,255,0.95)';this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'"
+                    onmouseout="this.style.background='rgba(255,255,255,0.7)';this.style.transform='translateY(0)';this.style.boxShadow='none'">
+                <svg style="width:18px;height:18px;fill:currentColor;" viewBox="0 0 24 24">
+                    <path d="M13,3A9,9 0 0,0 4,12H1L4.89,15.89L4.96,16.03L9,12H6A7,7 0 0,1 13,5A7,7 0 0,1 20,12A7,7 0 0,1 13,19C11.07,19 9.32,18.21 8.06,16.94L6.64,18.36C8.27,19.99 10.51,21 13,21A9,9 0 0,0 22,12A9,9 0 0,0 13,3M12.5,8V12.25L16.5,14.6L17.21,13.37L14,11.54V8H12.5Z"/>
+                </svg>
+                載入歷史數據
+            </button>
+            <button onclick="newReportAnalysis()" id="new-report-btn" style="padding:10px 20px; background:linear-gradient(135deg, #f59e0b, #d97706); color:white; border:none; border-radius:12px; cursor:pointer; font-size:14px; font-weight:600; transition:all 0.3s ease; box-shadow:0 4px 12px rgba(245,158,11,0.3); display:inline-flex; align-items:center; gap:6px;"
+                    onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(245,158,11,0.4)'"
+                    onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='0 4px 12px rgba(245,158,11,0.3)'">
+                <svg style="width:18px;height:18px;fill:white;" viewBox="0 0 24 24">
+                    <path d="M17,13H13V17H11V13H7V11H11V7H13V11H17M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20,12C20,16.41 16.41,20 12,20Z"/>
+                </svg>
+                New Report Analysis
             </button>
         </div>
         
@@ -1078,17 +1095,17 @@
                 </div>
                 
                 <!-- AI解讀摘要 - 可摺疊 -->
-                <div style="margin-top:15px;">
-                    <button onclick="toggleAISummary(this)" style="width:100%; padding:12px; background:#f8f9fa; border:2px solid #e9ecef; border-radius:8px; cursor:pointer; font-size:14px; font-weight:bold; color:#495057; display:flex; justify-content:space-between; align-items:center; transition:all 0.3s;" onmouseover="this.style.background='#e9ecef'" onmouseout="this.style.background='#f8f9fa'">
+                <div style="margin-top:8px;">
+                    <button onclick="toggleAISummary(this)" style="width:100%; padding:6px 10px; background:#f8f9fa; border:1px solid #e9ecef; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600; color:#495057; display:flex; justify-content:space-between; align-items:center; transition:all 0.2s;" onmouseover="this.style.background='#e9ecef'" onmouseout="this.style.background='#f8f9fa'">
                         <span>
-                            <svg style="width:18px;height:18px;vertical-align:middle;margin-right:6px;fill:#667eea;" viewBox="0 0 24 24">
+                            <svg style="width:14px;height:14px;vertical-align:middle;margin-right:4px;fill:#667eea;" viewBox="0 0 24 24">
                                 <path d="M12,3C15.73,3 19,5.5 19,9C19,11.17 17.67,13.17 15.5,14.5L12,21L8.5,14.5C6.33,13.17 5,11.17 5,9C5,5.5 8.27,3 12,3M12,5C9.5,5 7.5,6.5 7.5,9C7.5,10.5 8.5,11.83 10,12.83L12,16.5L14,12.83C15.5,11.83 16.5,10.5 16.5,9C16.5,6.5 14.5,5 12,5Z"/>
                             </svg>
                             AI解讀摘要
                         </span>
-                        <span class="arrow-icon" style="transition:transform 0.3s;">▼</span>
+                        <span class="arrow-icon" style="transition:transform 0.3s;font-size:10px;">▼</span>
                     </button>
-                    <div class="ai-summary-content" style="display:none; margin-top:10px; padding:15px; background:#f0f4ff; border-radius:8px; border-left:4px solid #667eea;">
+                    <div class="ai-summary-content" style="display:none; margin-top:6px; padding:10px; background:#f0f4ff; border-radius:6px; border-left:3px solid #667eea;">
                         ${formatAISummary(aiSummary)}
                     </div>
                 </div>
@@ -1383,6 +1400,93 @@
                     }
                 });
             }, 100);
+        }
+        
+        // ==================== New Report Analysis ====================
+        function newReportAnalysis() {
+            // 清空當前分析結果
+            analysisResults = [];
+            uploadedFiles = [];
+            
+            // 清空結果顯示區
+            document.getElementById('resultsContainer').innerHTML = '';
+            document.getElementById('chartsContainer').innerHTML = '';
+            document.getElementById('resultsSection').style.display = 'none';
+            document.getElementById('chartsSection').style.display = 'none';
+            
+            // 重置文件輸入
+            const fileInput = document.getElementById('fileInput');
+            if (fileInput) fileInput.value = '';
+            const folderInput = document.getElementById('folderInput');
+            if (folderInput) folderInput.value = '';
+            
+            // 清空進度條
+            const progressContainer = document.getElementById('progressContainerFixed');
+            if (progressContainer) {
+                progressContainer.classList.add('hidden');
+                setTimeout(() => progressContainer.remove(), 300);
+            }
+            
+            showToast('已清空當前數據，可以開始新的分析', 'success', 3000);
+            
+            // 捲動到上載區域
+            document.querySelector('.upload-section').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        
+        // ==================== Load History ====================
+        async function loadHistory() {
+            const resultsContainer = document.getElementById('resultsContainer');
+            resultsContainer.innerHTML = '<div class="loading"><div class="spinner"></div><p>正在從數據庫載入歷史分析...</p></div>';
+            document.getElementById('resultsSection').style.display = 'block';
+            
+            try {
+                const response = await fetch('/broker_3quilm/api/results');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (!data || data.length === 0) {
+                    resultsContainer.innerHTML = `
+                        <div class="empty-state">
+                            <svg class="empty-state-icon" style="width:64px;height:64px;fill:#cbd5e0;" viewBox="0 0 24 24">
+                                <path d="M13,3A9,9 0 0,0 4,12H1L4.89,15.89L4.96,16.03L9,12H6A7,7 0 0,1 13,5A7,7 0 0,1 20,12A7,7 0 0,1 13,19C11.07,19 9.32,18.21 8.06,16.94L6.64,18.36C8.27,19.99 10.51,21 13,21A9,9 0 0,0 22,12A9,9 0 0,0 13,3Z"/>
+                            </svg>
+                            <p>暫無歷史分析數據</p>
+                            <p style="font-size:13px; color:#a0aec0; margin-top:10px;">請先使用「開始掃描」分析 PDF 文件</p>
+                        </div>`;
+                    document.getElementById('chartsSection').style.display = 'none';
+                    return;
+                }
+                
+                // 清空並重建分析結果
+                analysisResults = data;
+                resultsContainer.innerHTML = '';
+                
+                // 顯示每筆結果
+                data.forEach(result => displayResult(result));
+                
+                // 生成圖表
+                if (analysisResults.length > 0) {
+                    generateCharts();
+                }
+                
+                showToast(`已載入 ${data.length} 筆歷史分析數據`, 'success', 3000);
+                
+                // 自動加載 Supabase 圖表數據
+                setTimeout(() => loadCharts(), 500);
+                
+            } catch (error) {
+                console.error('[HISTORY] 載入失敗:', error);
+                resultsContainer.innerHTML = `
+                    <div class="result-card" style="border-left:4px solid #e53e3e;">
+                        <p style="color:#e53e3e;font-weight:bold;">載入歷史數據失敗</p>
+                        <p style="margin-top:8px;color:#666;">${error.message}</p>
+                    </div>`;
+                showToast('載入歷史數據失敗', 'error', 3000);
+            }
         }
         
         async function scanFolder() {
@@ -1856,6 +1960,84 @@
             });
         }
         
+        // AI 智能業績解讀
+        function createAISmartSummary(marketSentiment, priceStats, container) {
+            const card = document.createElement('div');
+            card.className = 'glass-card';
+            card.style.cssText = 'margin-bottom:20px;border-left:4px solid #667eea;';
+
+            const upsideColor = priceStats.average_upside >= 0 ? '#48bb78' : '#fc8181';
+            const bullPct = priceStats.total_rated > 0 ? Math.round(priceStats.bull_count / priceStats.total_rated * 100) : 0;
+
+            card.innerHTML = `
+                <h3 style="color:#667eea;margin-bottom:15px;font-size:18px;">🤖 AI 智能業績解讀</h3>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:15px;margin-bottom:15px;">
+                    <div style="background:#ebf8ff;padding:15px;border-radius:8px;text-align:center;">
+                        <div style="font-size:13px;color:#718096;">報告數量</div>
+                        <div style="font-size:24px;font-weight:bold;color:#2b6cb0;">${priceStats.total_reports}</div>
+                    </div>
+                    <div style="background:#f0fff4;padding:15px;border-radius:8px;text-align:center;">
+                        <div style="font-size:13px;color:#718096;">平均目標價</div>
+                        <div style="font-size:24px;font-weight:bold;color:#276749;">HK$${priceStats.average_price.toFixed(0)}</div>
+                    </div>
+                    <div style="background:${upsideColor}15;padding:15px;border-radius:8px;text-align:center;">
+                        <div style="font-size:13px;color:#718096;">潛在升幅</div>
+                        <div style="font-size:24px;font-weight:bold;color:${upsideColor};">${priceStats.average_upside > 0 ? '+' : ''}${priceStats.average_upside.toFixed(1)}%</div>
+                    </div>
+                    <div style="background:#faf5ff;padding:15px;border-radius:8px;text-align:center;">
+                        <div style="font-size:13px;color:#718096;">看升比例</div>
+                        <div style="font-size:24px;font-weight:bold;color:#6b46c1;">${bullPct}%</div>
+                    </div>
+                </div>
+                <div style="background:#f7fafc;padding:15px;border-radius:8px;line-height:1.8;color:#4a5568;">
+                    <strong style="color:#2d3748;">市場觀點：</strong>${marketSentiment}
+                </div>
+            `;
+            container.appendChild(card);
+        }
+
+        // 評級分佈圓餅圖
+        function createEnhancedRatingPieChart(ratingData, priceStats, container) {
+            const card = document.createElement('div');
+            card.className = 'glass-card';
+            card.style.marginBottom = '20px';
+
+            const colors = {
+                '買入': '#48bb78', '增持': '#68d391', '中性': '#ecc94b',
+                '跑贏大市': '#4299e1', '未明確': '#a0aec0', '減持': '#fc8181'
+            };
+            const total = ratingData.reduce((s, r) => s + r.count, 0);
+            const rows = ratingData.map(r => {
+                const c = colors[r.rating] || '#cbd5e0';
+                const pct = total > 0 ? (r.count / total * 100).toFixed(1) : 0;
+                return `<div style="display:flex;align-items:center;gap:10px;margin:6px 0;">
+                    <span style="width:12px;height:12px;border-radius:50%;background:${c};flex-shrink:0;"></span>
+                    <span style="flex:1;color:#4a5568;">${r.rating}</span>
+                    <span style="color:#718096;">${r.count}</span>
+                    <span style="color:#a0aec0;font-size:13px;">${pct}%</span>
+                </div>`;
+            }).join('');
+
+            card.innerHTML = `
+                <h3 style="color:#667eea;margin-bottom:15px;font-size:18px;">📊 評級分佈</h3>
+                <div style="max-width:350px;margin:0 auto;">${rows}</div>
+            `;
+            container.appendChild(card);
+        }
+
+        // 業務板塊貢獻圖（佔位）
+        function createBusinessSegmentTreemap(container) {
+            // 業務板塊數據需從分析結果中提取，目前顯示佔位提示
+            const card = document.createElement('div');
+            card.className = 'glass-card';
+            card.style.cssText = 'margin-bottom:20px;text-align:center;padding:30px;';
+            card.innerHTML = `
+                <h3 style="color:#667eea;margin-bottom:10px;font-size:18px;">🏢 業務板塊分析</h3>
+                <p style="color:#a0aec0;">此功能需要更多報告數據才能生成板塊對比</p>
+            `;
+            container.appendChild(card);
+        }
+
         // 創建券商覆蓋柱狀圖
         function createBrokerBarChart(brokerData, container) {
             const chartDiv = document.createElement('div');

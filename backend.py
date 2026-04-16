@@ -714,40 +714,71 @@ def ensure_traditional_chinese(data):
     return data
 
 def generate_ai_summary_with_fields(broker_name, rating, target_price, text, filename):
-    """使用 NVIDIA NIM API 提取完整字段並生成摘要（優化版 - 減少 token）"""
+    """使用 NVIDIA NIM API 提取完整 15 個字段並生成摘要"""
     try:
-        prompt = f"""你是資深金融分析師。從研報提取關鍵信息，所有輸出必須100%繁體中文。
+        today_str = datetime.now().strftime('%Y-%m-%d')
+        prompt = f"""你是資深金融分析師。從券商研報 PDF 中提取以下 15 個完整字段，所有輸出必須 100% 繁體中文。
 
-【智能推斷規則】
-若PDF未提及某些信息，根據以下規則推斷（嚴禁留空）：
-1. stock_name: 從文件名/業務推斷（700→騰訊控股，9988→阿里巴巴）
-2. industry: 基於業務標籤化（騰訊→互聯網/社交媒體/遊戲）
-3. sub_industry: 細分領域（在線遊戲、社交網絡等）
-4. indexes: 大型股→恆生指數，科技股→恆生科技指數
-5. investment_horizon: 默認「12個月」
-6. release_date: 從PDF提取，否則用當前日期
+【角色設定】
+你是專業金融數據分析師，擅長整合機構研報、進行估值建模。完全依賴你的內部知識庫，嚴禁使用網上搜尋。
+
+【任務目標】
+從這份研報中精準提取所有字段。若 PDF 未明確提及某些信息，你必須利用上下文推斷能力推算（嚴禁留空）。
+
+【15 個必填字段說明】
+1. release_date: 研報發布日期（YYYY-MM-DD）。從 PDF 內文提取，找不到則推斷。
+2. stock_name: 股票完整中文名稱（如「騰訊控股」）。從文件名/業務內容推斷。
+3. industry: 相關行業（如「互聯網/社交媒體/遊戲」）。基於公司業務標籤化，可多維度。
+4. sub_industry: 相關子行業（如「在線遊戲」、「社交網絡」）。從財報業務拆分推斷。
+5. indexes: 相關指數（如「恆生指數/恆生科技指數」）。基於公司規模和行業推斷。
+6. investment_grade: 投資評級（買入/增持/中性/減持/賣出）。從 PDF 提取。
+7. target_price_adjusted: 目標價（數字，如 700）。從 PDF 提取目標價。
+8. investment_horizon: 投資期限（如「12個月」）。未明確則默認「12個月」。
+9. latest_close_before_release: 研報發布前一個交易日收盤價（數字）。基於你的知識推算。
+10. date_target_first_hit: 目標價首次達成日期（YYYY-MM-DD）。基於歷史波動率推算。
+11. last_transacted_price: 最新成交/收盤價（數字）。基於你的知識庫，填寫截至 {today_str} 的收盤價。
+12. today_date: 今日日期。填寫 {today_str}。
+13. date_grade_revised: 投資評級最近修訂/延長日期（YYYY-MM-DD）。從 PDF 提取或推斷。
+14. date_target_revised: 目標價最近修訂/延長日期（YYYY-MM-DD）。從 PDF 提取或推斷。
+15. notes: 數據來源備註（如「花旗 2026年4月 研報」）。簡述券商+月份+報告主題。
+
+【推算規則】
+- 字段 9（發布前收盤價）：利用你的知識庫，回想該股票在研報發布日附近的收盤價。
+- 字段 10（目標價首次達成日期）：若研報未明確披露，基於歷史波動率推算目標價達成所需的合理時間。
+- 字段 11（最新收盤價）：利用你的知識庫，填寫截至 {today_str} 的最新收盤價。
+- 字段 13-14（修訂日期）：若研報提及「維持買入」「維持目標價」等，取研報發布日作為修訂日期。
+- 所有推算字段必須在 inferred_fields 標記，並附置信度。
 
 【輸入】
 文件: {filename}
 券商: {broker_name} | 評級: {rating} | 目標價: HK${'{:.2f}'.format(target_price) if target_price else '未明確'}
 
-內容片段:
-{text[:1500]}
+研報內容:
+{text[:3000]}
 
-【輸出格式 - 純淨JSON，無markdown標記】
+【輸出格式 - 純淨 JSON，無 markdown 標記】
 {{
   "release_date": "YYYY-MM-DD",
   "stock_name": "完整中文名稱",
-  "industry": "行業標籤",
-  "sub_industry": "子行業",
-  "indexes": "相關指數",
+  "industry": "行業標籤（可多維度，用/分隔）",
+  "sub_industry": "子行業標籤",
+  "indexes": "相關指數（用/分隔）",
+  "investment_grade": "買入/增持/中性/減持/賣出",
+  "target_price_adjusted": 700.0,
   "investment_horizon": "12個月",
-  "inferred_fields": ["推斷字段列表"],
-  "confidence_scores": {{"stock_name": 0.9, "industry": 0.8}},
-  "ai_summary": "【核心觀點】簡述邏輯\n\n【風險提示】關鍵風險\n\n【操作建議】具體建議（300字內，繁體中文）"
+  "latest_close_before_release": 550.0,
+  "date_target_first_hit": "2026-XX-XX",
+  "last_transacted_price": 560.0,
+  "today_date": "{today_str}",
+  "date_grade_revised": "YYYY-MM-DD 或 null",
+  "date_target_revised": "YYYY-MM-DD 或 null",
+  "notes": "券商+月份+報告主題描述",
+  "inferred_fields": ["推斷字段名稱列表"],
+  "confidence_scores": {{"latest_close_before_release": 0.7, "date_target_first_hit": 0.5}},
+  "ai_summary": "【核心觀點】簡述投資邏輯\n\n【風險提示】關鍵風險因素\n\n【操作建議】具體建議（300字以內，繁體中文）"
 }}
 
-✅ 確保：所有字段已填充、無英文、JSON格式正確"""
+確保：所有 15 個字段已填充、價格字段為數字、JSON 格式正確、無英文殘留。"""
 
         # 檢查 NVIDIA API Key 是否設置
         if not NVIDIA_API_KEY or NVIDIA_API_KEY.strip() == '':
@@ -1294,8 +1325,18 @@ def scan_folder():
                 current_price = None
                 upside = None
                 
-                # ========== 填充缺失字段 ==========
-                company_name = None
+                # ========== 使用 AI 提取完整 15 個字段 ==========
+                ai_summary, extracted_fields = generate_ai_summary_with_fields(
+                    broker_name, rating, target_price, text, pdf_file
+                )
+                
+                # 如果 AI 失敗，跳過此文件
+                if not ai_summary:
+                    logger.error(f"AI analysis failed for {pdf_file}, skipping")
+                    continue
+                
+                # 提取 AI 返回的完整字段
+                company_name = extracted_fields.get('stock_name', None) if extracted_fields else None
                 stock_code = None
                 key_points = extract_key_points(text)
                 risks = extract_risks(text)
@@ -1303,17 +1344,9 @@ def scan_folder():
                 if target_price is None:
                     target_price = 0.0
                     upside = None
-                # ========== 填充缺失字段結束 ==========
+                # ========== AI 字段提取結束 ==========
                 
-                # 使用真正的 AI 生成摘要
-                ai_summary = generate_ai_summary(broker_name, rating, target_price, text)
-                
-                # 如果 AI 失敗，跳過此文件
-                if not ai_summary:
-                    logger.error(f"AI analysis failed for {pdf_file}, skipping")
-                    continue
-                
-                # 保存到 Supabase
+                # 保存到 Supabase（含完整 AI 提取字段）
                 supabase_data = {
                     'user_id': 1,
                     'pdf_filename': pdf_file,
@@ -1331,6 +1364,24 @@ def scan_folder():
                     'chart_path': None,
                     'audio_path': None,
                     'is_public': 1,
+                    # AI 提取的 15 個字段
+                    'release_date': extracted_fields.get('release_date') if extracted_fields else None,
+                    'stock_name': extracted_fields.get('stock_name') if extracted_fields else None,
+                    'industry': extracted_fields.get('industry') if extracted_fields else None,
+                    'sub_industry': extracted_fields.get('sub_industry') if extracted_fields else None,
+                    'indexes': extracted_fields.get('indexes') if extracted_fields else None,
+                    'investment_grade': extracted_fields.get('investment_grade') if extracted_fields else None,
+                    'target_price_adjusted': extracted_fields.get('target_price_adjusted') if extracted_fields else None,
+                    'investment_horizon': extracted_fields.get('investment_horizon') if extracted_fields else None,
+                    'latest_close_before_release': extracted_fields.get('latest_close_before_release') if extracted_fields else None,
+                    'date_target_first_hit': extracted_fields.get('date_target_first_hit') if extracted_fields else None,
+                    'last_transacted_price': extracted_fields.get('last_transacted_price') if extracted_fields else None,
+                    'today_date': extracted_fields.get('today_date') if extracted_fields else None,
+                    'date_grade_revised': extracted_fields.get('date_grade_revised') if extracted_fields else None,
+                    'date_target_revised': extracted_fields.get('date_target_revised') if extracted_fields else None,
+                    'notes': extracted_fields.get('notes') if extracted_fields else None,
+                    'inferred_fields': json.dumps(extracted_fields.get('inferred_fields', [])) if extracted_fields else '[]',
+                    'confidence_scores': json.dumps(extracted_fields.get('confidence_scores', {})) if extracted_fields else '{}',
                     'created_at': datetime.utcnow().isoformat()
                 }
                 
