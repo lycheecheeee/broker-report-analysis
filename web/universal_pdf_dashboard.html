@@ -1225,10 +1225,10 @@
                     <tr style="background:${bgColor};">
                         <td style="padding:10px; border-bottom:1px solid #ddd;">${result.release_date || '-'}</td>
                         <td style="padding:10px; border-bottom:1px solid #ddd;">${result.broker_name || '-'}</td>
-                        <td style="padding:10px; border-bottom:1px solid #ddd;">${result.stock_name || '騰訊控股'}</td>
-                        <td style="padding:10px; border-bottom:1px solid #ddd;">${result.industry || '互聯網'}</td>
-                        <td style="padding:10px; border-bottom:1px solid #ddd;">${result.sub_industry || '社交媒體'}</td>
-                        <td style="padding:10px; border-bottom:1px solid #ddd;">${result.indexes || '恒生指數'}</td>
+                        <td style="padding:10px; border-bottom:1px solid #ddd;">${result.stock_name || '-'}</td>
+                        <td style="padding:10px; border-bottom:1px solid #ddd;">${result.industry || '-'}</td>
+                        <td style="padding:10px; border-bottom:1px solid #ddd;">${result.sub_industry || '-'}</td>
+                        <td style="padding:10px; border-bottom:1px solid #ddd;">${result.indexes || '-'}</td>
                         <td style="padding:10px; text-align:center; border-bottom:1px solid #ddd; ${ratingClass}">${rating}</td>
                         <td style="padding:10px; text-align:right; border-bottom:1px solid #ddd; font-weight:bold;">${result.target_price ? result.target_price.toFixed(2) : '-'}</td>
                         <td style="padding:10px; text-align:right; border-bottom:1px solid #ddd;">${result.current_price ? result.current_price.toFixed(2) : '-'}</td>

@@ -1079,7 +1079,7 @@ def analyze_pdf():
             logger.error("AI analysis failed, no fallback")
             return jsonify({'error': 'AI 分析失敗，請稍後重試'}), 500
         
-        # 保存到 Supabase
+        # 保存到 Supabase（含完整 AI 提取字段）
         supabase_data = {
             'user_id': user_id,
             'pdf_filename': filename,
@@ -1090,13 +1090,31 @@ def analyze_pdf():
             'upside_potential': upside,
             'ai_summary': ai_summary,
             'prompt_used': prompt,
-            'company_name': company_name,
+            'company_name': extracted_fields.get('stock_name') if extracted_fields else company_name,
             'stock_code': stock_code,
             'key_points': key_points,
             'risks': risks,
             'chart_path': None,
             'audio_path': None,
             'is_public': 1,
+            # AI 提取的 15 個字段
+            'release_date': extracted_fields.get('release_date') if extracted_fields else None,
+            'stock_name': extracted_fields.get('stock_name') if extracted_fields else None,
+            'industry': extracted_fields.get('industry') if extracted_fields else None,
+            'sub_industry': extracted_fields.get('sub_industry') if extracted_fields else None,
+            'indexes': extracted_fields.get('indexes') if extracted_fields else None,
+            'investment_grade': extracted_fields.get('investment_grade') if extracted_fields else None,
+            'target_price_adjusted': extracted_fields.get('target_price_adjusted') if extracted_fields else None,
+            'investment_horizon': extracted_fields.get('investment_horizon') if extracted_fields else None,
+            'latest_close_before_release': extracted_fields.get('latest_close_before_release') if extracted_fields else None,
+            'date_target_first_hit': extracted_fields.get('date_target_first_hit') if extracted_fields else None,
+            'last_transacted_price': extracted_fields.get('last_transacted_price') if extracted_fields else None,
+            'today_date': extracted_fields.get('today_date') if extracted_fields else None,
+            'date_grade_revised': extracted_fields.get('date_grade_revised') if extracted_fields else None,
+            'date_target_revised': extracted_fields.get('date_target_revised') if extracted_fields else None,
+            'notes': extracted_fields.get('notes') if extracted_fields else None,
+            'inferred_fields': json.dumps(extracted_fields.get('inferred_fields', [])) if extracted_fields else '[]',
+            'confidence_scores': json.dumps(extracted_fields.get('confidence_scores', {})) if extracted_fields else '{}',
             'created_at': datetime.utcnow().isoformat()
         }
         
@@ -1133,11 +1151,13 @@ def analyze_pdf():
             'industry': extracted_fields.get('industry', '-'),
             'sub_industry': extracted_fields.get('sub_industry', '-'),
             'indexes': extracted_fields.get('indexes', '-'),
-            'target_hit_date': '-',
-            'rating_revised_date': '-',
-            'target_revised_date': '-',
-            'investment_horizon': extracted_fields.get('investment_horizon', '-'),
-            # 推算字段標記
+            'target_hit_date': extracted_fields.get('date_target_first_hit', '-'),
+            'rating_revised_date': extracted_fields.get('date_grade_revised', '-'),
+            'target_revised_date': extracted_fields.get('date_target_revised', '-'),
+            'investment_grade': extracted_fields.get('investment_grade', '-'),
+            'target_price_adjusted': extracted_fields.get('target_price_adjusted'),
+            'latest_close_before_release': extracted_fields.get('latest_close_before_release'),
+            'last_transacted_price': extracted_fields.get('last_transacted_price'),
             'inferred_fields': extracted_fields.get('inferred_fields', []),
             # 數據匯總分析
             'summary_stats': summary_stats
@@ -1168,7 +1188,28 @@ def get_results():
         'current_price': r.get('current_price'),
         'upside_potential': r.get('upside_potential'),
         'ai_summary': r.get('ai_summary'),
-        'created_at': r.get('created_at')
+        'created_at': r.get('created_at'),
+        # 15 個 AI 提取字段
+        'release_date': r.get('release_date'),
+        'stock_name': r.get('stock_name') or r.get('company_name'),
+        'industry': r.get('industry'),
+        'sub_industry': r.get('sub_industry'),
+        'indexes': r.get('indexes'),
+        'investment_grade': r.get('investment_grade'),
+        'target_price_adjusted': r.get('target_price_adjusted'),
+        'investment_horizon': r.get('investment_horizon'),
+        'latest_close_before_release': r.get('latest_close_before_release'),
+        'date_target_first_hit': r.get('date_target_first_hit'),
+        'last_transacted_price': r.get('last_transacted_price'),
+        'today_date': r.get('today_date'),
+        'date_grade_revised': r.get('date_grade_revised'),
+        'date_target_revised': r.get('date_target_revised'),
+        'notes': r.get('notes'),
+        'inferred_fields': r.get('inferred_fields'),
+        'confidence_scores': r.get('confidence_scores'),
+        'target_hit_date': r.get('date_target_first_hit') or r.get('target_hit_date'),
+        'rating_revised_date': r.get('date_grade_revised') or r.get('rating_revised_date'),
+        'target_revised_date': r.get('date_target_revised') or r.get('target_revised_date')
     } for r in results])
 
 @app.route('/broker_3quilm/api/feedback', methods=['POST'])
@@ -1496,7 +1537,7 @@ def analyze_existing_pdf():
         final_indexes = extracted_fields.get('indexes', '-')
         final_investment_horizon = extracted_fields.get('investment_horizon', '-')
         
-        # 準備 Supabase 數據
+        # 準備 Supabase 數據（含完整 15 個 AI 字段）
         supabase_data = {
             'user_id': user_id,
             'pdf_filename': filename,
@@ -1507,70 +1548,55 @@ def analyze_existing_pdf():
             'upside_potential': upside,
             'ai_summary': ai_summary,
             'prompt_used': '',
+            'company_name': extracted_fields.get('stock_name') if extracted_fields else None,
             'release_date': final_release_date,
             'stock_name': final_stock_name,
             'industry': final_industry,
             'sub_industry': final_sub_industry,
             'indexes': final_indexes,
+            'investment_grade': extracted_fields.get('investment_grade') if extracted_fields else None,
+            'target_price_adjusted': extracted_fields.get('target_price_adjusted') if extracted_fields else None,
             'investment_horizon': final_investment_horizon,
+            'latest_close_before_release': extracted_fields.get('latest_close_before_release') if extracted_fields else None,
+            'date_target_first_hit': extracted_fields.get('date_target_first_hit') if extracted_fields else None,
+            'last_transacted_price': extracted_fields.get('last_transacted_price') if extracted_fields else None,
+            'today_date': extracted_fields.get('today_date') if extracted_fields else None,
+            'date_grade_revised': extracted_fields.get('date_grade_revised') if extracted_fields else None,
+            'date_target_revised': extracted_fields.get('date_target_revised') if extracted_fields else None,
+            'notes': extracted_fields.get('notes') if extracted_fields else None,
+            'inferred_fields': json.dumps(extracted_fields.get('inferred_fields', [])) if extracted_fields else '[]',
+            'confidence_scores': json.dumps(extracted_fields.get('confidence_scores', {})) if extracted_fields else '{}',
             'created_at': datetime.utcnow().isoformat()
         }
         
-        # 保存到 Supabase（異步處理，不阻塞主流程）
-        import threading
-        
-        def save_to_supabase_async():
-            """背景線程保存數據到 Supabase"""
-            try:
-                logger.info(f"[Async] Saving to Supabase: {filename}")
-                
-                # Step 1: 檢查是否已存在相同 pdf_filename 的記錄
-                check_url = f"{SUPABASE_URL}/rest/v1/analysis_results?pdf_filename=eq.{filename}&select=id"
-                check_headers = {
-                    'apikey': SUPABASE_KEY,
-                    'Authorization': f'Bearer {SUPABASE_KEY}',
-                    'Content-Type': 'application/json'
-                }
-                
-                check_response = requests.get(check_url, headers=check_headers, timeout=5)
-                existing_records = check_response.json() if check_response.status_code == 200 else []
-                
-                if existing_records and len(existing_records) > 0:
-                    # Step 2a: 如果已存在，執行 UPDATE 操作
-                    existing_id = existing_records[0]['id']
-                    logger.info(f"[Async] Record exists (ID: {existing_id}), updating...")
-                    
-                    update_url = f"{SUPABASE_URL}/rest/v1/analysis_results?id=eq.{existing_id}"
-                    update_response = requests.patch(
-                        update_url,
-                        headers=check_headers,
-                        json=supabase_data,
-                        timeout=5
-                    )
-                    
-                    if update_response.status_code in [200, 204]:
-                        logger.info(f"[Async] Successfully updated record ID: {existing_id}")
-                    else:
-                        logger.warning(f"[Async] Failed to update record: HTTP {update_response.status_code}")
-                else:
-                    # Step 2b: 如果不存在，執行 INSERT 操作
-                    logger.info("[Async] No existing record found, creating new record...")
-                    result = supabase_request('POST', 'analysis_results', data=supabase_data)
-                    
-                    if result and len(result) > 0:
-                        logger.info(f"[Async] Successfully created new record, ID: {result[0]['id']}")
-                    else:
-                        logger.warning(f"[Async] Failed to create new record for {filename}")
-                        
-            except Exception as e:
-                logger.error(f"[Async] Error saving to Supabase: {str(e)}")
-        
-        # 啟動背景線程（daemon=True 確保主線程退出時自動終止）
-        save_thread = threading.Thread(target=save_to_supabase_async, daemon=True)
-        save_thread.start()
-        
-        # 立即返回 analysis_id（實際保存喺背景進行）
-        analysis_id = None  # 背景保存，唔等待結果
+        # 保存到 Supabase（同步，Vercel Serverless 不支持 background threads）
+        analysis_id = None
+        try:
+            # 先檢查是否已存在相同 pdf_filename 的記錄
+            check_url = f"{SUPABASE_URL}/rest/v1/analysis_results?pdf_filename=eq.{filename}&select=id"
+            check_headers = {
+                'apikey': SUPABASE_KEY,
+                'Authorization': f'Bearer {SUPABASE_KEY}',
+                'Content-Type': 'application/json'
+            }
+            check_response = requests.get(check_url, headers=check_headers, timeout=5)
+            existing_records = check_response.json() if check_response.status_code == 200 else []
+            
+            if existing_records and len(existing_records) > 0:
+                existing_id = existing_records[0]['id']
+                logger.info(f"Record exists (ID: {existing_id}), updating...")
+                update_url = f"{SUPABASE_URL}/rest/v1/analysis_results?id=eq.{existing_id}"
+                update_response = requests.patch(update_url, headers=check_headers, json=supabase_data, timeout=10)
+                if update_response.status_code in [200, 204]:
+                    analysis_id = existing_id
+                    logger.info(f"Successfully updated record ID: {existing_id}")
+            else:
+                result = supabase_request('POST', 'analysis_results', data=supabase_data)
+                if result and len(result) > 0:
+                    analysis_id = result[0]['id']
+                    logger.info(f"Successfully created new record, ID: {analysis_id}")
+        except Exception as save_err:
+            logger.error(f"Failed to save to Supabase: {save_err}")
         
         # 計算數據匯總統計
         summary_stats = {
@@ -1596,10 +1622,15 @@ def analyze_existing_pdf():
             'industry': final_industry,
             'sub_industry': final_sub_industry,
             'indexes': final_indexes,
-            'target_hit_date': '-',
-            'rating_revised_date': '-',
-            'target_revised_date': '-',
+            'target_hit_date': extracted_fields.get('date_target_first_hit', '-'),
+            'rating_revised_date': extracted_fields.get('date_grade_revised', '-'),
+            'target_revised_date': extracted_fields.get('date_target_revised', '-'),
             'investment_horizon': final_investment_horizon,
+            'investment_grade': extracted_fields.get('investment_grade', '-'),
+            'target_price_adjusted': extracted_fields.get('target_price_adjusted'),
+            'latest_close_before_release': extracted_fields.get('latest_close_before_release'),
+            'last_transacted_price': extracted_fields.get('last_transacted_price'),
+            'inferred_fields': extracted_fields.get('inferred_fields', []),
             # 數據匯總分析
             'summary_stats': summary_stats
         })
