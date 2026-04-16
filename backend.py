@@ -64,9 +64,11 @@ def log_request():
 
 
 # 配置
-SECRET_KEY = os.environ.get('SECRET_KEY')
+import secrets
+SECRET_KEY = os.environ.get('SECRET_KEY', '').strip()
 if not SECRET_KEY:
-    raise EnvironmentError("Missing required environment variable: SECRET_KEY")
+    SECRET_KEY = secrets.token_hex(32)
+    logger.warning("SECRET_KEY not set, generated a random one. Set it in Vercel env for production.")
 
 # Supabase 配置 - 清理可能的換行符和空白
 SUPABASE_URL = os.environ.get('SUPABASE_URL', '').strip()
@@ -81,13 +83,15 @@ if not SUPABASE_URL or not SUPABASE_KEY:
     )
 
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), '700')
-OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY', '')
+
+# 所有 API Key 讀取時統一 strip，防止隱藏空白/換行符導致 HTTP header 無效
+OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY', '').strip()
 OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions'
 
 # NVIDIA NIM API 配置（優先使用）
-NVIDIA_API_KEY = os.environ.get('NVIDIA_API_KEY', '')
+NVIDIA_API_KEY = os.environ.get('NVIDIA_API_KEY', '').strip()
 NVIDIA_API_URL = 'https://integrate.api.nvidia.com/v1/chat/completions'
-NVIDIA_MODEL = 'meta/llama-3.1-405b-instruct'  # 使用 Llama 3.1 405B
+NVIDIA_MODEL = 'meta/llama-3.1-8b-instruct'  # 使用 Llama 3.1 8B（速度快，免費）
 
 # 數據庫模式：強制使用 Supabase
 DB_MODE = 'supabase'
@@ -99,6 +103,9 @@ try:
     logger.info(f"Upload folder ready: {UPLOAD_FOLDER}")
 except Exception as e:
     logger.error(f"Upload folder creation error: {e}")
+
+# SQLite 數據庫路徑（僅本地開發使用）
+DATABASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'broker_reports.db')
 
 # 數據庫初始化標誌
 _db_initialized = False
@@ -397,7 +404,6 @@ def extract_broker_info(text):
 
 def extract_key_points(text):
     """從 PDF 文本提取關鍵要點"""
-    import re
     
     # 尋找關鍵詞附近嘅內容
     key_point_keywords = [
@@ -421,7 +427,6 @@ def extract_key_points(text):
 
 def extract_risks(text):
     """從 PDF 文本提取風險因素"""
-    import re
     
     # 尋找風險相關內容
     risk_keywords = [
@@ -444,8 +449,6 @@ def extract_risks(text):
 
 def extract_release_date(text):
     """從PDF文本中提取發布日期"""
-    import re
-    from datetime import datetime
     
     # 常見日期格式模式
     date_patterns = [
@@ -614,7 +617,7 @@ def generate_ai_summary(broker_name, rating, target_price, text):
             logger.info("AI summary generated successfully via NVIDIA")
             return ai_content.strip()
         else:
-            logger.warning("NVIDIA API returned empty, trying fallback")
+            logger.warning("NVIDIA API returned empty")
             return None
     except Exception as e:
         logger.error(f"AI analysis failed: {str(e)}")
@@ -748,15 +751,15 @@ def generate_ai_summary_with_fields(broker_name, rating, target_price, text, fil
 
         # 檢查 NVIDIA API Key 是否設置
         if not NVIDIA_API_KEY or NVIDIA_API_KEY.strip() == '':
-            logger.warning("NVIDIA_API_KEY not configured, using fallback")
-            return _create_fallback_response(broker_name, rating, target_price, "API密鑰未配置")
+            logger.error("NVIDIA_API_KEY not configured")
+            return None, None
         
         # 調用 NVIDIA API（帶重試機制）
         ai_content = call_nvidia_api(prompt, max_tokens=1000, temperature=0.2)
         
         if not ai_content:
-            logger.error("NVIDIA API returned empty after retries, using fallback")
-            return _create_fallback_response(broker_name, rating, target_price, "API調用失敗")
+            logger.error("NVIDIA API returned empty after retries")
+            return None, None
         
         logger.debug(f"Raw NVIDIA response (first 300 chars): {ai_content[:300]}")
         
@@ -796,45 +799,16 @@ def generate_ai_summary_with_fields(broker_name, rating, target_price, text, fil
             
             # 若修復失敗，返回原始內容作為摘要
             logger.warning("JSON fix failed, returning raw content as summary")
-            return ai_content[:500], _create_minimal_data(filename, broker_name)
+            return ai_content[:500], _validate_and_fill_fields({}, filename, broker_name)
             
     except Exception as e:
         logger.error(f"Analysis failed with exception: {type(e).__name__}: {str(e)}")
         import traceback
         traceback.print_exc()
-        return _create_fallback_response(broker_name, rating, target_price, f"異常錯誤: {str(e)}")
+        return None, None
 
 
-def _create_fallback_response(broker_name, rating, target_price, reason):
-    """創建降級響應（僅在 API 完全失敗時使用）"""
-    fallback_summary = f"基於{broker_name}的研報分析：\n\n• 評級: {rating}\n• 目標價: HK${'{:.2f}'.format(target_price) if target_price else '未明確'}\n\n（註：{reason}）"
-    fallback_data = {
-        'release_date': datetime.now().strftime('%Y-%m-%d'),
-        'stock_name': '-',
-        'industry': '-',
-        'sub_industry': '-',
-        'indexes': '-',
-        'investment_horizon': '12個月',
-        'inferred_fields': [],
-        'confidence_scores': {},
-        'ai_summary': fallback_summary
-    }
-    return fallback_summary, fallback_data
 
-
-def _create_minimal_data(filename, broker_name):
-    """創建最小化數據結構（用於 JSON 解析失敗時）"""
-    return {
-        'release_date': datetime.now().strftime('%Y-%m-%d'),
-        'stock_name': '-',
-        'industry': '-',
-        'sub_industry': '-',
-        'indexes': '-',
-        'investment_horizon': '12個月',
-        'inferred_fields': [],
-        'confidence_scores': {},
-        'ai_summary': ''
-    }
 
 
 def _validate_and_fill_fields(data, filename, broker_name):
@@ -1022,37 +996,10 @@ def analyze_pdf():
         # 提取基本信息
         broker_name, rating, target_price = extract_broker_info(text)
         
-        # 根據文件名設置不同的當前價（模擬不同日期的股價）
-        if 'BOA' in filename.upper():
-            current_price = 548.00
-        elif 'CICC' in filename.upper():
-            current_price = 552.50
-        elif 'CITIGROUP' in filename.upper():
-            current_price = 549.80
-        elif 'CLSA' in filename.upper():
-            current_price = 551.20
-        elif 'CMB' in filename.upper():
-            current_price = 550.00
-        elif 'CMS' in filename.upper():
-            current_price = 553.00
-        elif 'DAIWA' in filename.upper():
-            current_price = 547.50
-        elif 'DEUTSCHE' in filename.upper():
-            current_price = 554.00
-        elif 'JP' in filename.upper():
-            current_price = 550.50
-        elif 'MAC' in filename.upper():
-            current_price = 549.00
-        elif 'MS' in filename.upper():
-            current_price = 551.80
-        elif 'NOMURA' in filename.upper():
-            current_price = 548.50
-        elif 'UBS' in filename.upper():
-            current_price = 552.00
-        else:
-            current_price = 550.50
+        # 當前價由 AI 提取或前端提供，不再硬編碼
+        current_price = None
         
-        upside = round((target_price - current_price) / current_price * 100, 2) if target_price else None
+        upside = None
         
         logger.info(f"Extracted - Broker: {broker_name}, Rating: {rating}, Target: {target_price}")
         
@@ -1078,9 +1025,8 @@ def analyze_pdf():
         # ========== 去重檢查結束 ==========
         
         # ========== 填充缺失字段 ==========
-        # 硬編碼已知信息（騰訊控股）
-        company_name = "騰訊控股"
-        stock_code = "0700.HK"
+        company_name = None
+        stock_code = None
         
         # 從 PDF 文本提取關鍵要點同風險
         key_points = extract_key_points(text)
@@ -1094,21 +1040,13 @@ def analyze_pdf():
         logger.debug(f"Fields - company: {company_name}, stock: {stock_code}, key_points: {len(key_points) if key_points else 0}, risks: {len(risks) if risks else 0}")
         # ========== 填充缺失字段結束 ==========
         
-        # 使用真正的 AI 生成摘要
-        ai_summary = generate_ai_summary(broker_name, rating, target_price, text)
+        # 使用真正的 AI 生成摘要並提取完整字段
+        ai_summary, extracted_fields = generate_ai_summary_with_fields(broker_name, rating, target_price, text, filename)
         
-        # 如果 AI 失敗,使用備用方案
+        # 如果 AI 失敗，返回錯誤
         if not ai_summary:
-            logger.warning("AI analysis failed, using fallback")
-            ai_summary = f"基於{broker_name}的研報分析:\n\n"
-            ai_summary += f"• 評級: {rating}\n"
-            if target_price:
-                ai_summary += f"• 目標價: HK${target_price:.2f}\n"
-            else:
-                ai_summary += "• 目標價: 未明確\n"
-            if upside:
-                ai_summary += f"• 上行空間: {upside}%\n"
-            ai_summary += f"\n核心觀點摘要:\n{text[:500]}..."
+            logger.error("AI analysis failed, no fallback")
+            return jsonify({'error': 'AI 分析失敗，請稍後重試'}), 500
         
         # 保存到 Supabase
         supabase_data = {
@@ -1135,6 +1073,10 @@ def analyze_pdf():
         analysis_id = result[0]['id'] if result and len(result) > 0 else None
         
         logger.info(f"Analysis completed, ID: {analysis_id}")
+        
+        # 定義路徑變量（用於返回）
+        folder_path = UPLOAD_FOLDER
+        pdf_folder = UPLOAD_FOLDER
         
         # 計算數據匯總統計
         summary_stats = {
@@ -1349,12 +1291,12 @@ def scan_folder():
             text = parse_pdf(filepath)
             if text:
                 broker_name, rating, target_price = extract_broker_info(text)
-                current_price = 550.50
-                upside = round((target_price - current_price) / current_price * 100, 2) if target_price else None
+                current_price = None
+                upside = None
                 
                 # ========== 填充缺失字段 ==========
-                company_name = "騰訊控股"
-                stock_code = "0700.HK"
+                company_name = None
+                stock_code = None
                 key_points = extract_key_points(text)
                 risks = extract_risks(text)
                 
@@ -1366,17 +1308,10 @@ def scan_folder():
                 # 使用真正的 AI 生成摘要
                 ai_summary = generate_ai_summary(broker_name, rating, target_price, text)
                 
-                # 如果 AI 失敗，使用備用方案
+                # 如果 AI 失敗，跳過此文件
                 if not ai_summary:
-                    ai_summary = f"基於{broker_name}的研報分析:\n\n"
-                    ai_summary += f"• 評級: {rating}\n"
-                    if target_price:
-                        ai_summary += f"• 目標價: HK${target_price:.2f}\n"
-                    else:
-                        ai_summary += "• 目標價: 未明確\n"
-                    if upside:
-                        ai_summary += f"• 上行空間: {upside}%\n"
-                    ai_summary += f"\n核心觀點摘要:\n{text[:500]}..."
+                    logger.error(f"AI analysis failed for {pdf_file}, skipping")
+                    continue
                 
                 # 保存到 Supabase
                 supabase_data = {
@@ -1489,62 +1424,26 @@ def analyze_existing_pdf():
         # 提取基本信息
         broker_name, rating, target_price = extract_broker_info(text)
         
-        # 根據文件名設置不同的當前價（模擬不同日期的股價）
-        if 'BOA' in filename.upper():
-            current_price = 548.00
-        elif 'CICC' in filename.upper():
-            current_price = 552.50
-        elif 'CITIGROUP' in filename.upper():
-            current_price = 549.80
-        elif 'CLSA' in filename.upper():
-            current_price = 551.20
-        elif 'CMB' in filename.upper():
-            current_price = 550.00
-        elif 'CMS' in filename.upper():
-            current_price = 553.00
-        elif 'DAIWA' in filename.upper():
-            current_price = 547.50
-        elif 'DEUTSCHE' in filename.upper():
-            current_price = 554.00
-        elif 'JP' in filename.upper():
-            current_price = 550.50
-        elif 'MAC' in filename.upper():
-            current_price = 549.00
-        elif 'MS' in filename.upper():
-            current_price = 551.80
-        elif 'NOMURA' in filename.upper():
-            current_price = 548.50
-        elif 'UBS' in filename.upper():
-            current_price = 552.00
-        else:
-            current_price = 550.50
+        # 當前價由 AI 提取或前端提供，不再硬編碼
+        current_price = None
         
-        upside = round((target_price - current_price) / current_price * 100, 2) if target_price else None
-        
-        # 從 PDF 文本中提取發布日期
+        upside = None
         release_date = extract_release_date(text)
         
         # 使用 AI 生成摘要（包含完整字段提取）
         ai_summary, extracted_fields = generate_ai_summary_with_fields(broker_name, rating, target_price, text, filename)
         
         if not ai_summary:
-            ai_summary = f"基於{broker_name}的研報分析:\n\n"
-            ai_summary += f"• 評級: {rating}\n"
-            if target_price:
-                ai_summary += f"• 目標價: HK${target_price:.2f}\n"
-            else:
-                ai_summary += "• 目標價: 未明確\n"
-            if upside:
-                ai_summary += f"• 上行空間: {upside}%\n"
-            ai_summary += f"\n核心觀點摘要:\n{text[:500]}..."
+            logger.error("AI analysis failed, no fallback")
+            return jsonify({'error': 'AI 分析失敗，請稍後重試'}), 500
         
-        # 如果AI提取成功，使用AI的結果；否則使用默認值
-        final_release_date = extracted_fields.get('release_date', release_date) if extracted_fields else release_date
-        final_stock_name = extracted_fields.get('stock_name', '-') if extracted_fields else '-'
-        final_industry = extracted_fields.get('industry', '-') if extracted_fields else '-'
-        final_sub_industry = extracted_fields.get('sub_industry', '-') if extracted_fields else '-'
-        final_indexes = extracted_fields.get('indexes', '-') if extracted_fields else '-'
-        final_investment_horizon = extracted_fields.get('investment_horizon', '-') if extracted_fields else '-'
+        # 如果AI提取成功，使用AI的結果
+        final_release_date = extracted_fields.get('release_date', release_date)
+        final_stock_name = extracted_fields.get('stock_name', '-')
+        final_industry = extracted_fields.get('industry', '-')
+        final_sub_industry = extracted_fields.get('sub_industry', '-')
+        final_indexes = extracted_fields.get('indexes', '-')
+        final_investment_horizon = extracted_fields.get('investment_horizon', '-')
         
         # 準備 Supabase 數據
         supabase_data = {
@@ -2251,7 +2150,7 @@ def api_status_check():
                     'stream': False
                 }
                 
-                response = requests.post(NVIDIA_API_URL, headers=headers, json=payload, timeout=5)
+                response = requests.post(NVIDIA_API_URL, headers=headers, json=payload, timeout=30)
                 elapsed = (time.time() - start_time) * 1000  # 轉換為毫秒
                 
                 if response.status_code == 200:
@@ -2292,7 +2191,7 @@ def api_status_check():
                     'temperature': 0.1
                 }
                 
-                response = requests.post(OPENROUTER_API_URL, headers=headers, json=payload, timeout=5)
+                response = requests.post(OPENROUTER_API_URL, headers=headers, json=payload, timeout=15)
                 elapsed = (time.time() - start_time) * 1000
                 
                 if response.status_code == 200:
