@@ -1034,25 +1034,23 @@ def analyze_pdf():
         
         logger.info(f"Extracted - Broker: {broker_name}, Rating: {rating}, Target: {target_price}")
         
-        # ========== 去重檢查 ==========
+        # ========== 去重檢查：先刪後插，不留舊記錄 ==========
+        original_created_at = None
         existing_results = supabase_request('GET', 'analysis_results', 
-                                           query_params=f'pdf_filename=eq.{filename}')
+                                           query_params=f'pdf_filename=eq.{filename}&select=id,created_at')
         
         if existing_results and len(existing_results) > 0:
             existing_record = existing_results[0]
-            logger.info(f"Duplicate file {filename} (ID: {existing_record.get('id')}, Time: {existing_record.get('created_at')})")
-            logger.info("Skipping duplicate analysis, returning existing data")
+            existing_id = existing_record.get('id')
+            original_created_at = existing_record.get('created_at')
+            logger.info(f"Duplicate file {filename} (ID: {existing_id}), deleting old record...")
             
-            # 返回現有記錄
-            return jsonify({
-                'success': True,
-                'message': f'文件 {filename} 今日已分析過，使用現有數據',
-                'duplicate': True,
-                'existing_id': existing_record.get('id'),
-                'analysis_time': existing_record.get('created_at')
-            })
+            # 刪除舊記錄
+            supabase_request('DELETE', 'analysis_results', 
+                           query_params=f'id=eq.{existing_id}')
+            logger.info(f"Deleted old record ID: {existing_id}")
         
-        logger.info("New file, starting analysis...")
+        logger.info("Starting analysis (new or re-analysis)...")
         # ========== 去重檢查結束 ==========
         
         # ========== 填充缺失字段 ==========
@@ -1115,7 +1113,7 @@ def analyze_pdf():
             'notes': extracted_fields.get('notes') if extracted_fields else None,
             'inferred_fields': json.dumps(extracted_fields.get('inferred_fields', [])) if extracted_fields else '[]',
             'confidence_scores': json.dumps(extracted_fields.get('confidence_scores', {})) if extracted_fields else '{}',
-            'created_at': datetime.utcnow().isoformat()
+            'created_at': original_created_at if original_created_at else datetime.utcnow().isoformat()
         }
         
         result = supabase_request('POST', 'analysis_results', data=supabase_data)
@@ -1344,20 +1342,23 @@ def scan_folder():
     
     # 自動分析每個PDF
     analyzed_count = 0
-    skipped_count = 0  # 跳過嘅重複文件數
     
     for pdf_file in pdf_files:
         try:
             filepath = os.path.join(folder_path, pdf_file)
             
-            # ========== 去重檢查 ==========
+            # ========== 去重檢查：先刪後插，不留舊記錄 ==========
+            original_created_at_scan = None
             existing_results = supabase_request('GET', 'analysis_results', 
-                                               query_params=f'pdf_filename=eq.{pdf_file}')
+                                               query_params=f'pdf_filename=eq.{pdf_file}&select=id,created_at')
             
             if existing_results and len(existing_results) > 0:
-                logger.info(f"Skipping duplicate: {pdf_file}")
-                skipped_count += 1
-                continue
+                existing_id = existing_results[0].get('id')
+                original_created_at_scan = existing_results[0].get('created_at')
+                logger.info(f"Duplicate file {pdf_file} (ID: {existing_id}), deleting old record...")
+                supabase_request('DELETE', 'analysis_results', 
+                               query_params=f'id=eq.{existing_id}')
+                logger.info(f"Deleted old record ID: {existing_id}")
             # ========== 去重檢查結束 ==========
             
             text = parse_pdf(filepath)
@@ -1423,7 +1424,7 @@ def scan_folder():
                     'notes': extracted_fields.get('notes') if extracted_fields else None,
                     'inferred_fields': json.dumps(extracted_fields.get('inferred_fields', [])) if extracted_fields else '[]',
                     'confidence_scores': json.dumps(extracted_fields.get('confidence_scores', {})) if extracted_fields else '{}',
-                    'created_at': datetime.utcnow().isoformat()
+                    'created_at': original_created_at_scan if original_created_at_scan else datetime.utcnow().isoformat()
                 }
                 
                 logger.info(f"Saving to Supabase (scan): {pdf_file}")
@@ -1442,8 +1443,7 @@ def scan_folder():
         'message': '掃描完成',
         'total_files': len(pdf_files),
         'analyzed_files': analyzed_count,
-        'skipped_duplicates': skipped_count,  # 新增：跳過嘅重複文件數
-        'details': f'總共 {len(pdf_files)} 個文件，新分析 {analyzed_count} 個，跳過 {skipped_count} 個重複文件'
+        'details': f'總共 {len(pdf_files)} 個文件，成功分析 {analyzed_count} 個（舊記錄已替換）'
     }), 200
 
 @app.route('/broker_3quilm/api/list-pdfs', methods=['GET'])
@@ -1570,10 +1570,11 @@ def analyze_existing_pdf():
         }
         
         # 保存到 Supabase（同步，Vercel Serverless 不支持 background threads）
+        # 策略：先刪除舊記錄，再插入新記錄，確保不留舊數據
         analysis_id = None
         try:
             # 先檢查是否已存在相同 pdf_filename 的記錄
-            check_url = f"{SUPABASE_URL}/rest/v1/analysis_results?pdf_filename=eq.{filename}&select=id"
+            check_url = f"{SUPABASE_URL}/rest/v1/analysis_results?pdf_filename=eq.{filename}&select=id,created_at"
             check_headers = {
                 'apikey': SUPABASE_KEY,
                 'Authorization': f'Bearer {SUPABASE_KEY}',
@@ -1581,20 +1582,32 @@ def analyze_existing_pdf():
             }
             check_response = requests.get(check_url, headers=check_headers, timeout=5)
             existing_records = check_response.json() if check_response.status_code == 200 else []
-            
+
+            original_created_at = None
             if existing_records and len(existing_records) > 0:
                 existing_id = existing_records[0]['id']
-                logger.info(f"Record exists (ID: {existing_id}), updating...")
-                update_url = f"{SUPABASE_URL}/rest/v1/analysis_results?id=eq.{existing_id}"
-                update_response = requests.patch(update_url, headers=check_headers, json=supabase_data, timeout=10)
-                if update_response.status_code in [200, 204]:
-                    analysis_id = existing_id
-                    logger.info(f"Successfully updated record ID: {existing_id}")
+                original_created_at = existing_records[0].get('created_at')
+                logger.info(f"Record exists (ID: {existing_id}), deleting old record before re-insert...")
+
+                # 刪除舊記錄，確保不留舊數據
+                delete_url = f"{SUPABASE_URL}/rest/v1/analysis_results?id=eq.{existing_id}"
+                delete_response = requests.delete(delete_url, headers=check_headers, timeout=5)
+                if delete_response.status_code in [200, 204]:
+                    logger.info(f"Deleted old record ID: {existing_id}")
+                else:
+                    logger.warning(f"Failed to delete old record ID: {existing_id}, status: {delete_response.status_code}")
+
+            # 使用原始 created_at（若有），否則用當前時間
+            if original_created_at:
+                supabase_data['created_at'] = original_created_at
             else:
-                result = supabase_request('POST', 'analysis_results', data=supabase_data)
-                if result and len(result) > 0:
-                    analysis_id = result[0]['id']
-                    logger.info(f"Successfully created new record, ID: {analysis_id}")
+                supabase_data['created_at'] = datetime.utcnow().isoformat()
+
+            # 插入新記錄
+            result = supabase_request('POST', 'analysis_results', data=supabase_data)
+            if result and len(result) > 0:
+                analysis_id = result[0]['id']
+                logger.info(f"Successfully inserted new record, ID: {analysis_id}")
         except Exception as save_err:
             logger.error(f"Failed to save to Supabase: {save_err}")
         
