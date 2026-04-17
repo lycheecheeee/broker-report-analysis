@@ -1006,9 +1006,11 @@ def analyze_pdf():
         
         logger.debug(f"Received file: {file.filename}")
         
-        # 保存文件
+        # 保存文件（使用 /tmp，Vercel serverless filesystem 是 read-only）
         filename = file.filename
-        filepath = os.path.join(UPLOAD_FOLDER, filename)
+        tmp_folder = '/tmp/pdf_uploads'
+        os.makedirs(tmp_folder, exist_ok=True)
+        filepath = os.path.join(tmp_folder, filename)
         file.save(filepath)
         logger.debug(f"File saved: {filepath}")
         
