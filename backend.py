@@ -311,6 +311,61 @@ def ensure_db_initialized():
 # Auth 系統已移除 - 公開工具無需登入
 # 所有 API 使用固定 user_id = 1
 
+def get_active_records(all_results):
+    """從全部 record 中只取每個 pdf_filename 最新的一條（active record）。
+    舊 record 自動成為 archive，唔刪除。
+    
+    Args:
+        all_results: Supabase 返回嘅全部 record list
+    Returns:
+        list: 每個 pdf_filename 最新的一條 record
+    """
+    if not all_results:
+        return []
+    
+    from collections import defaultdict
+    groups = defaultdict(list)
+    for r in all_results:
+        fname = r.get('pdf_filename', '')
+        groups[fname].append(r)
+    
+    # 每個 group 只保留 created_at 最新的一條
+    active = []
+    for fname, records in groups.items():
+        latest = max(records, key=lambda x: x.get('created_at', ''))
+        active.append(latest)
+    
+    return active
+
+def get_archived_records(all_results):
+    """從全部 record 中取所有非最新嘅 record（archived record）。
+    
+    Args:
+        all_results: Supabase 返回嘅全部 record list
+    Returns:
+        list: 所有非最新嘅 record，按 created_at 降序排列
+    """
+    if not all_results:
+        return []
+    
+    from collections import defaultdict
+    groups = defaultdict(list)
+    for r in all_results:
+        fname = r.get('pdf_filename', '')
+        groups[fname].append(r)
+    
+    # 每個 group 取最新一條嘅 id
+    latest_ids = set()
+    for fname, records in groups.items():
+        latest = max(records, key=lambda x: x.get('created_at', ''))
+        latest_ids.add(latest.get('id'))
+    
+    # 所有唔係最新嘅 record
+    archived = [r for r in all_results if r.get('id') not in latest_ids]
+    archived.sort(key=lambda x: x.get('created_at', ''), reverse=True)
+    
+    return archived
+
 def parse_pdf(pdf_path):
     """解析PDF文件"""
     try:
@@ -1036,23 +1091,10 @@ def analyze_pdf():
         
         logger.info(f"Extracted - Broker: {broker_name}, Rating: {rating}, Target: {target_price}")
         
-        # ========== 去重檢查：先刪後插，不留舊記錄 ==========
-        original_created_at = None
-        existing_results = supabase_request('GET', 'analysis_results', 
-                                           query_params=f'pdf_filename=eq.{filename}&select=id,created_at')
-        
-        if existing_results and len(existing_results) > 0:
-            existing_record = existing_results[0]
-            existing_id = existing_record.get('id')
-            original_created_at = existing_record.get('created_at')
-            logger.info(f"Duplicate file {filename} (ID: {existing_id}), deleting old record...")
-            
-            # 刪除舊記錄
-            supabase_request('DELETE', 'analysis_results', 
-                           query_params=f'id=eq.{existing_id}')
-            logger.info(f"Deleted old record ID: {existing_id}")
-        
-        logger.info("Starting analysis (new or re-analysis)...")
+        # ========== 去重策略：保留舊記錄作 archive，直接 INSERT 新記錄 ==========
+        # 不再刪除舊 record，每次重新分析都新增一條
+        # 前端/統計用 get_active_records() 只取每個 pdf_filename 最新的一條
+        logger.info(f"Will INSERT new record for {filename} (old records kept as archive)")
         # ========== 去重檢查結束 ==========
         
         # ========== 填充缺失字段 ==========
@@ -1115,7 +1157,7 @@ def analyze_pdf():
             'notes': extracted_fields.get('notes') if extracted_fields else None,
             'inferred_fields': json.dumps(extracted_fields.get('inferred_fields', [])) if extracted_fields else '[]',
             'confidence_scores': json.dumps(extracted_fields.get('confidence_scores', {})) if extracted_fields else '{}',
-            'created_at': original_created_at if original_created_at else datetime.utcnow().isoformat()
+            'created_at': datetime.utcnow().isoformat()
         }
         
         result = supabase_request('POST', 'analysis_results', data=supabase_data)
@@ -1175,6 +1217,9 @@ def get_results():
     
     # 從 Supabase 獲取數據
     results = supabase_request('GET', 'analysis_results', query_params=f'user_id=eq.{user_id}&order=created_at.desc')
+    
+    # 只保留每個 pdf_filename 最新的一條（active record）
+    results = get_active_records(results)
     
     if not results:
         return jsonify([])
@@ -1297,7 +1342,10 @@ def get_charts():
     try:
         # 從 Supabase 獲取數據
         results = supabase_request('GET', 'analysis_results', 
-                                  query_params='user_id=eq.1&order=created_at.desc&limit=10')
+                                  query_params='user_id=eq.1&order=created_at.desc&limit=100')
+        
+        # 只保留每個 pdf_filename 最新的一條（active record）
+        results = get_active_records(results)
         
         if not results:
             return jsonify({
@@ -1349,18 +1397,8 @@ def scan_folder():
         try:
             filepath = os.path.join(folder_path, pdf_file)
             
-            # ========== 去重檢查：先刪後插，不留舊記錄 ==========
-            original_created_at_scan = None
-            existing_results = supabase_request('GET', 'analysis_results', 
-                                               query_params=f'pdf_filename=eq.{pdf_file}&select=id,created_at')
-            
-            if existing_results and len(existing_results) > 0:
-                existing_id = existing_results[0].get('id')
-                original_created_at_scan = existing_results[0].get('created_at')
-                logger.info(f"Duplicate file {pdf_file} (ID: {existing_id}), deleting old record...")
-                supabase_request('DELETE', 'analysis_results', 
-                               query_params=f'id=eq.{existing_id}')
-                logger.info(f"Deleted old record ID: {existing_id}")
+            # ========== 去重策略：保留舊記錄作 archive，直接 INSERT 新記錄 ==========
+            logger.info(f"Will INSERT new record for {pdf_file} (old records kept as archive)")
             # ========== 去重檢查結束 ==========
             
             text = parse_pdf(filepath)
@@ -1426,7 +1464,7 @@ def scan_folder():
                     'notes': extracted_fields.get('notes') if extracted_fields else None,
                     'inferred_fields': json.dumps(extracted_fields.get('inferred_fields', [])) if extracted_fields else '[]',
                     'confidence_scores': json.dumps(extracted_fields.get('confidence_scores', {})) if extracted_fields else '{}',
-                    'created_at': original_created_at_scan if original_created_at_scan else datetime.utcnow().isoformat()
+                    'created_at': datetime.utcnow().isoformat()
                 }
                 
                 logger.info(f"Saving to Supabase (scan): {pdf_file}")
@@ -1575,35 +1613,10 @@ def analyze_existing_pdf():
         # 策略：先刪除舊記錄，再插入新記錄，確保不留舊數據
         analysis_id = None
         try:
-            # 先檢查是否已存在相同 pdf_filename 的記錄
-            check_url = f"{SUPABASE_URL}/rest/v1/analysis_results?pdf_filename=eq.{filename}&select=id,created_at"
-            check_headers = {
-                'apikey': SUPABASE_KEY,
-                'Authorization': f'Bearer {SUPABASE_KEY}',
-                'Content-Type': 'application/json'
-            }
-            check_response = requests.get(check_url, headers=check_headers, timeout=5)
-            existing_records = check_response.json() if check_response.status_code == 200 else []
+            # ========== 去重策略：保留舊記錄作 archive，直接 INSERT 新記錄 ==========
+            logger.info(f"Will INSERT new record for {filename} (old records kept as archive)")
 
-            original_created_at = None
-            if existing_records and len(existing_records) > 0:
-                existing_id = existing_records[0]['id']
-                original_created_at = existing_records[0].get('created_at')
-                logger.info(f"Record exists (ID: {existing_id}), deleting old record before re-insert...")
-
-                # 刪除舊記錄，確保不留舊數據
-                delete_url = f"{SUPABASE_URL}/rest/v1/analysis_results?id=eq.{existing_id}"
-                delete_response = requests.delete(delete_url, headers=check_headers, timeout=5)
-                if delete_response.status_code in [200, 204]:
-                    logger.info(f"Deleted old record ID: {existing_id}")
-                else:
-                    logger.warning(f"Failed to delete old record ID: {existing_id}, status: {delete_response.status_code}")
-
-            # 使用原始 created_at（若有），否則用當前時間
-            if original_created_at:
-                supabase_data['created_at'] = original_created_at
-            else:
-                supabase_data['created_at'] = datetime.utcnow().isoformat()
+            supabase_data['created_at'] = datetime.utcnow().isoformat()
 
             # 插入新記錄
             result = supabase_request('POST', 'analysis_results', data=supabase_data)
@@ -1660,6 +1673,9 @@ def get_chart_data():
     try:
         # 從 Supabase 獲取所有分析結果
         all_results = supabase_request('GET', 'analysis_results')
+        
+        # 只保留每個 pdf_filename 最新的一條（active record）
+        all_results = get_active_records(all_results)
         
         if not all_results:
             return jsonify({
@@ -1855,6 +1871,36 @@ def get_chart_data():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
+@app.route('/broker_3quilm/api/archived-reports', methods=['GET'])
+def get_archived_reports():
+    """獲取所有存檔的舊分析記錄（每個 pdf_filename 的非最新版本）"""
+    try:
+        all_results = supabase_request('GET', 'analysis_results')
+        
+        if not all_results:
+            return jsonify([])
+        
+        archived = get_archived_records(all_results)
+        
+        return jsonify([{
+            'id': r.get('id'),
+            'pdf_filename': r.get('pdf_filename'),
+            'broker_name': r.get('broker_name'),
+            'rating': r.get('rating'),
+            'target_price': r.get('target_price'),
+            'current_price': r.get('current_price'),
+            'upside_potential': r.get('upside_potential'),
+            'ai_summary': r.get('ai_summary'),
+            'key_points': r.get('key_points'),
+            'risks': r.get('risks'),
+            'stock_name': r.get('stock_name'),
+            'created_at': r.get('created_at'),
+            'is_archived': True
+        } for r in archived])
+    except Exception as e:
+        logger.error(f"Failed to get archived reports: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/broker_3quilm/api/export-analysis', methods=['GET'])
 def export_analysis_report():
     """導出詳細分析報告為 Excel 文件 - 包含完整 15 個字段及智能分表"""
@@ -1867,6 +1913,9 @@ def export_analysis_report():
         
         # 從 Supabase 獲取所有數據
         all_results = supabase_request('GET', 'analysis_results')
+        
+        # 導出時只包含 active record（每個 pdf_filename 最新一條）
+        all_results = get_active_records(all_results)
         
         if not all_results:
             return jsonify({'error': '沒有可導出的數據'}), 404

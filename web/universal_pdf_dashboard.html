@@ -1054,6 +1054,12 @@
                 </svg>
                 項目結構
             </button>
+            <button onclick="showTab('archive')" id="tab-archive" class="nav-tab">
+                <svg style="width:18px;height:18px;vertical-align:middle;margin-right:6px;fill:currentColor;" viewBox="0 0 24 24">
+                    <path d="M3,3H21V5H3V3M3,7H21V9H3V7M3,11H21V13H3V11M3,15H21V17H3V15M3,19H21V21H3V19Z"/>
+                </svg>
+                📦 存檔
+            </button>
             <div style="flex:1;"></div>
             <button onclick="loadHistory()" id="load-history-btn" style="padding:10px 20px; background:rgba(255,255,255,0.7); color:#4a5568; border:2px solid rgba(255,255,255,0.5); border-radius:12px; cursor:pointer; font-size:14px; font-weight:600; transition:all 0.3s ease; backdrop-filter:blur(10px); display:inline-flex; align-items:center; gap:6px;"
                     onmouseover="this.style.background='rgba(255,255,255,0.95)';this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'"
@@ -2041,14 +2047,70 @@
             // Hide all tabs
             document.getElementById('tab-analysis-content').style.display = 'none';
             document.getElementById('tab-structure-content').style.display = 'none';
+            document.getElementById('tab-archive-content').style.display = 'none';
             
             // Remove active class from all buttons
             document.getElementById('tab-analysis').classList.remove('active');
             document.getElementById('tab-structure').classList.remove('active');
+            document.getElementById('tab-archive').classList.remove('active');
             
             // Show selected tab
             document.getElementById('tab-' + tabName + '-content').style.display = 'block';
             document.getElementById('tab-' + tabName).classList.add('active');
+            
+            // 載入存檔數據
+            if (tabName === 'archive') {
+                loadArchivedReports();
+            }
+        }
+        
+        // 載入存檔報告
+        async function loadArchivedReports() {
+            const container = document.getElementById('archived-reports-list');
+            if (!container) return;
+            
+            container.innerHTML = '<div style="text-align:center;padding:40px;color:#888;">載入中...</div>';
+            
+            try {
+                const response = await fetch('/broker_3quilm/api/archived-reports');
+                const reports = await response.json();
+                
+                if (!reports || reports.length === 0) {
+                    container.innerHTML = '<div style="text-align:center;padding:60px;color:#888;"><svg style="width:64px;height:64px;fill:#ccc;margin-bottom:16px;" viewBox="0 0 24 24"><path d="M20,6H12L10,4H4C2.89,4 2,4.89 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V8C22,6.89 21.1,6 20,6Z"/></svg><p style="font-size:16px;">冇存檔記錄</p><p style="font-size:13px;margin-top:8px;">重新分析同一份 PDF 時，舊版本會自動歸檔到呢度</p></div>';
+                    return;
+                }
+                
+                let html = '<div style="padding:16px;">';
+                html += '<div style="margin-bottom:16px;color:#666;font-size:14px;">📦 共 <strong>' + reports.length + '</strong> 條存檔記錄（每個 PDF 的舊分析版本）</div>';
+                html += '<div style="display:grid;gap:12px;">';
+                
+                reports.forEach(r => {
+                    const filename = r.pdf_filename || '未知文件';
+                    const broker = r.broker_name || '未知券商';
+                    const rating = r.rating || '-';
+                    const targetPrice = r.target_price ? '$' + r.target_price : '-';
+                    const createdAt = r.created_at ? new Date(r.created_at).toLocaleString('zh-HK') : '-';
+                    
+                    html += `
+                    <div style="background:rgba(255,255,255,0.6);border-radius:12px;padding:16px;border:1px solid rgba(0,0,0,0.06);">
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;">
+                            <div>
+                                <div style="font-weight:600;font-size:15px;color:#2d3748;">${filename}</div>
+                                <div style="font-size:13px;color:#718096;margin-top:4px;">${broker} | 評級: ${rating} | 目標價: ${targetPrice}</div>
+                                <div style="font-size:12px;color:#a0aec0;margin-top:2px;">存檔時間: ${createdAt}</div>
+                            </div>
+                            <span style="background:rgba(160,174,192,0.2);color:#718096;padding:4px 10px;border-radius:6px;font-size:12px;font-weight:500;">ARCHIVED</span>
+                        </div>
+                        ${r.ai_summary ? `<div style="margin-top:8px;font-size:13px;color:#4a5568;line-height:1.5;max-height:60px;overflow:hidden;">${r.ai_summary.substring(0, 150)}${r.ai_summary.length > 150 ? '...' : ''}</div>` : ''}
+                    </div>`;
+                });
+                
+                html += '</div></div>';
+                container.innerHTML = html;
+                
+            } catch (err) {
+                container.innerHTML = '<div style="text-align:center;padding:40px;color:#e53e3e;">載入失敗: ' + err.message + '</div>';
+            }
         }
         
         // 加載並渲染圖表
@@ -2748,6 +2810,21 @@
         <!-- End Tab: PDF Analysis -->
         
         <!-- Tab: Project Structure -->
+        <div id="tab-archive-content" style="display:none;">
+            <div class="glass-card">
+                <h2 style="color:#2d3748; margin-bottom:20px; font-size:24px;">
+                    <svg style="width:28px;height:28px;vertical-align:middle;margin-right:10px;fill:#667eea;" viewBox="0 0 24 24">
+                        <path d="M20,6H12L10,4H4C2.89,4 2,4.89 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V8C22,6.89 21.1,6 20,6Z"/>
+                    </svg>
+                    存檔報告
+                    <span style="font-size:14px;color:#a0aec0;font-weight:normal;margin-left:12px;">舊版分析記錄</span>
+                </h2>
+                <div id="archived-reports-list">
+                    <div style="text-align:center;padding:60px;color:#888;">點擊「載入存檔」查看歷史分析記錄</div>
+                </div>
+            </div>
+        </div>
+        
         <div id="tab-structure-content" style="display:none;">
             <div class="glass-card">
                 <h2 style="color:#2d3748; margin-bottom:20px; font-size:24px;">
